@@ -16,10 +16,10 @@ bq-hub/
 │   ├── bq-metrics/       # [ACTIF] Base de données dynamique, cockpit visuel et rapports
 │   ├── bq-bank/          # [VIERGE] Gestion optimisée des comptes bancaires et budgets
 │   ├── bq-car/           # [VIERGE] Suivi des entretiens de véhicules et consommation
-│   ├── bq-clothes/       # [VIERGE] Garde-robe connectée et suggestions de tenues
-│   ├── bq-games/         # [VIERGE] Historique des parties de jeux et compteur de scores
+│   ├── bq-cloth/         # [VIERGE] Garde-robe connectée et suggestions de tenues
+│   ├── bq-play/          # [VIERGE] Historique des parties de jeux et compteur de scores
 │   ├── bq-health/        # [VIERGE] Carnet de santé, RDV et ordonnances
-│   └── bq-quiz/          # [VIERGE] Spaced Repetition / Flashcards pour la culture G
+│   └── bq-learn/         # [VIERGE] Spaced Repetition / Flashcards pour la culture G
 ├── packages/             # Le code partagé et réutilisable (zéro duplication)
 │   ├── db-sync/          # Moteur de base locale (Dexie/IndexedDB) + Sync Google Drive
 │   └── theme/            # Fiches de styles SASS, couleurs unifiées et reset CSS
@@ -79,7 +79,7 @@ L'objectif est de recenser l'ensemble de tes biens (meubles, matériel de musiqu
 
 #### 🔗 Idées d'interconnexions :
 * **Avec `bq-bank`** : Un achat de matériel inséré dans `bq-stash` crée automatiquement une écriture de débit correspondante dans tes comptes bancaires.
-* **Avec `bq-games`** : Ta collection de jeux listée dans ton inventaire est automatiquement synchronisée avec le compteur de scores de tes soirées jeux.
+* **Avec `bq-play`** : Ta collection de jeux listée dans ton inventaire est automatiquement synchronisée avec le compteur de scores de tes soirées jeux.
 
 ---
 
@@ -95,9 +95,9 @@ Pour donner une cohérence globale à l'ensemble de la suite **bq-hub** tout en 
     * 📊 **bq-metrics** : Bleu électrique / Néon
     * 💰 **bq-bank** : Vert émeraude / Doré financier
     * 🚗 **bq-car** : Rouge sport / Gris anthracite
-    * 👕 **bq-clothes** : Bleu jean / Indigo élégant
-    * 🎲 **bq-games** : Violet ludique
+    * 👕 **bq-cloth** : Bleu jean / Indigo élégant
+    * 🎲 **bq-play** : Violet ludique
     * 🏥 **bq-health** : Turquoise / Bleu canard médical
-    * 🧠 **bq-quiz** : Rose fuschia / Violet améthyste
+    * 🧠 **bq-learn** : Rose fuschia / Violet améthyste
 * [ ] **Icônes de PWAs cohérentes** : Créer un jeu d'icônes de PWA homogènes, harmonieuses et de style similaire (formes géométriques identiques, épaisseur de trait constante, etc.) pour ton écran d'accueil PC et Mobile.
 

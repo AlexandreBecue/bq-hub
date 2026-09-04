@@ -25,7 +25,7 @@
 ### 📏 Poids & Mensurations (Suivi Corporel)
 * **Historique de pesées** : Entre tes relevés de poids réguliers et consulte tes courbes historiques.
 * **Calculateur d'IMC** : Estime ton **Indice de Masse Corporelle (IMC)** en temps réel d'après ton dernier poids et ta taille, et t'indique ta catégorie de corpulence (Normal, Surpoids, etc.).
-* **Aide-Mémoire Mensurations** : Enregistre tes mensurations corporelles (Tour de taille, tour d'épaules, poitrine, cuisses) pour les avoir sous la main lors de tes achats de vêtements (parfaitement raccord avec `bq-clothes` !).
+* **Aide-Mémoire Mensurations** : Enregistre tes mensurations corporelles (Tour de taille, tour d'épaules, poitrine, cuisses) pour les avoir sous la main lors de tes achats de vêtements (parfaitement raccord avec `bq-cloth` !).
 
 ### 💉 Vaccins (Historique)
 * **Compatibilité Rétroactive** : Réutilise et affiche instantanément tout ton historique de vaccins stocké sur ton Google Drive unifié (ID de collection existant `col-7lp7tols4`).
