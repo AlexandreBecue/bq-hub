@@ -1,0 +1,257 @@
+{
+  "1": {
+    "type": "hybrid",
+    "strength": {
+      "title": "Majeur pectoraux + rappel jambes & abdos & mollets",
+      "sequence": "alternated",
+      "sets": 4,
+      "warmup": {
+        "exerciseId": "calf_raise",
+        "restDuration": 10,
+        "workDuration": 120
+      },
+      "exercises": [
+        {
+          "exerciseId": "decline_pushup",
+          "restDuration": 30,
+          "workDuration": 30
+        },
+        {
+          "exerciseId": "sumo_squat",
+          "type": "dynamic",
+          "restDuration": 20,
+          "workDuration": 40
+        },
+        {
+          "exerciseId": "bench_dips",
+          "type": "dynamic",
+          "restDuration": 30,
+          "workDuration": 30
+        },
+        {
+          "exerciseId": "decline_crunch",
+          "type": "dynamic",
+          "restDuration": 20,
+          "workDuration": 40
+        }
+      ],
+      "finisher": [
+        {
+          "exerciseId": "wide_pushup_hold",
+          "sets": 3,
+          "restDuration": 20,
+          "workDuration": 20
+        }
+      ]
+    },
+    "cardio": {
+      "title": "Récupération active",
+      "exerciseId": "running",
+      "durationMinutes": 30,
+      "notes": "Facultatif : Course ou vélo très lent en endurance fondamentale (EF). Allure facile (vous devez pouvoir parler sans aucune gêne respiratoire). L'objectif est la récupération active et l'accumulation d'un temps d'effort doux."
+    }
+  },
+  "2": {
+    "type": "strength",
+    "strength": {
+      "title": "Majeur obliques + rappel dos & abdos & mollets",
+      "sequence": "alternated",
+      "sets": 4,
+      "warmup": {
+        "exerciseId": "calf_raise",
+        "restDuration": 10,
+        "workDuration": 120
+      },
+      "exercises": [
+        {
+          "exerciseId": "oblique_crunch",
+          "restDuration": 20,
+          "workDuration": 40
+        },
+        {
+          "exerciseId": "shrugs",
+          "restDuration": 20,
+          "workDuration": 40
+        },
+        {
+          "exerciseId": "side_plank_leg_abduction",
+          "restDuration": 20,
+          "workDuration": 40
+        },
+        {
+          "exerciseId": "reverse_crunch",
+          "restDuration": 20,
+          "workDuration": 40
+        }
+      ],
+      "finisher": [
+        {
+          "exerciseId": "plank",
+          "sets": 2,
+          "restDuration": 20,
+          "workDuration": 40
+        }
+      ]
+    }
+  },
+  "3": {
+    "type": "hybrid",
+    "strength": {
+      "title": "Lombaires, fessiers & gainage profond",
+      "sequence": "alternated",
+      "sets": 4,
+      "warmup": {
+        "exerciseId": "calf_raise",
+        "restDuration": 10,
+        "workDuration": 120
+      },
+      "exercises": [
+        {
+          "exerciseId": "bird_dog",
+          "restDuration": 20,
+          "workDuration": 40
+        },
+        {
+          "exerciseId": "sumo_squat",
+          "restDuration": 20,
+          "workDuration": 40
+        },
+        {
+          "exerciseId": "dead_bug",
+          "restDuration": 20,
+          "workDuration": 40
+        },
+        {
+          "exerciseId": "hip_thrust",
+          "restDuration": 20,
+          "workDuration": 40
+        }
+      ],
+      "finisher": [
+        {
+          "exerciseId": "superman_hold",
+          "sets": 2,
+          "restDuration": 20,
+          "workDuration": 40
+        },
+        {
+          "exerciseId": "hollow_body_hold",
+          "sets": 2,
+          "restDuration": 20,
+          "workDuration": 20
+        }
+      ]
+    },
+    "cardio": {
+      "title": "Footing/Vélo progressif",
+      "exerciseId": "running",
+      "durationMinutes": 35,
+      "notes": "Facultatif : Course ou vélo en endurance fondamentale (EF). Démarrez très calmement (échauffement ultra-facile) et augmentez de façon minime le rythme sur la fin si la forme le permet."
+    }
+  },
+  "4": {
+    "type": "strength",
+    "strength": {
+      "title": "Majeur jambes + rappel pectoraux & abdos & mollets",
+      "sequence": "alternated",
+      "sets": 4,
+      "warmup": {
+        "exerciseId": "calf_raise",
+        "restDuration": 10,
+        "workDuration": 120
+      },
+      "exercises": [
+        {
+          "exerciseId": "classic_squat",
+          "restDuration": 20,
+          "workDuration": 40
+        },
+        {
+          "exerciseId": "classic_pushup",
+          "restDuration": 30,
+          "workDuration": 30
+        },
+        {
+          "exerciseId": "alternating_lunges",
+          "restDuration": 20,
+          "workDuration": 40
+        },
+        {
+          "exerciseId": "reverse_crunch",
+          "restDuration": 20,
+          "workDuration": 40
+        }
+      ],
+      "finisher": [
+        {
+          "exerciseId": "wall_sit",
+          "sets": 2,
+          "restDuration": 20,
+          "workDuration": 40
+        }
+      ]
+    }
+  },
+  "5": {
+    "type": "hybrid",
+    "strength": {
+      "title": "Majeur dos & trapèzes + rappel obliques & abdos & mollets",
+      "sequence": "alternated",
+      "sets": 4,
+      "warmup": {
+        "exerciseId": "calf_raise",
+        "restDuration": 10,
+        "workDuration": 120
+      },
+      "exercises": [
+        {
+          "exerciseId": "table_row",
+          "restDuration": 30,
+          "workDuration": 30
+        },
+        {
+          "exerciseId": "oblique_crunch",
+          "restDuration": 20,
+          "workDuration": 40
+        },
+        {
+          "exerciseId": "shrugs",
+          "restDuration": 20,
+          "workDuration": 40
+        },
+        {
+          "exerciseId": "decline_crunch",
+          "restDuration": 20,
+          "workDuration": 40
+        }
+      ],
+      "finisher": [
+        {
+          "exerciseId": "table_row_hold",
+          "sets": 2,
+          "restDuration": 30,
+          "workDuration": 30
+        }
+      ]
+    },
+    "cardio": {
+      "title": "Endurance fondamentale",
+      "exerciseId": "cycling",
+      "durationMinutes": 30,
+      "notes": "Facultatif : Sortie lente en endurance fondamentale (EF). L'objectif est d'évacuer le stress de la semaine et de préparer doucement le système cardio-respiratoire pour la séance longue du lendemain."
+    }
+  },
+  "6": {
+    "type": "cardio",
+    "cardio": {
+      "title": "Séance longue progressive",
+      "exerciseId": "running",
+      "durationMinutes": 50,
+      "interval": 600,
+      "notes": "Obligatoire : La séance reine pour votre prépa ! Courir ou pédaler très lentement en endurance fondamentale (EF). L'objectif est de s'habituer à rester longtemps en activité.\n\n⚠️ Récupération active : Prenez 1 minute de récupération active toutes les 10 minutes dès le début (marche active ou pédalage ultra-lent au bip, puis reprise à l'écran). C'est le secret pour éliminer les crampes et durer !"
+    }
+  },
+  "0": {
+    "type": "rest"
+  }
+}

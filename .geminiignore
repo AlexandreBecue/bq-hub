@@ -1,0 +1,22 @@
+# Dépendances (tous sous-dossiers)
+**/node_modules/
+
+# Builds et sorties
+**/dist/
+**/dist-ssr/
+*.local
+
+# Cache et logs
+**/.vite/
+*.log
+npm-debug.log*
+
+# Fichiers de verrouillage lourds (inutiles au contexte de dev)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Versioning et IDE
+.git/
+.vscode/
+.idea/

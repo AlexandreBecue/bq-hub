@@ -1,0 +1,10 @@
+{
+  "name": "@bq/theme",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Thème SCSS et variables partagées pour la suite d'applications bq-*",
+  "exports": {
+    "./_vars.scss": "./src/_vars.scss",
+    "./style.scss": "./src/style.scss"
+  }
+}

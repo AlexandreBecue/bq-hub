@@ -1,0 +1,20 @@
+{
+  "name": "bq-hub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monorepo pour la collection d'applications personnelles bq-*",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:car": "npm run dev -w bq-car",
+    "dev:coach": "npm run dev -w bq-coach",
+    "dev:cook": "npm run dev -w bq-cook",
+    "dev:metrics": "npm run dev -w bq-metrics",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

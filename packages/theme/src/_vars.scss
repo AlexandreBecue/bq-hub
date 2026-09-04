@@ -1,0 +1,42 @@
+/* bq Unified Design Variables */
+:root {
+  --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  
+  /* Color Palette (Deep dark theme with vibrant accents) */
+  --bg-primary: #0b0f19;
+  --bg-secondary: #131a26;
+  --bg-tertiary: #1b2536;
+  --bg-card: rgba(22, 30, 49, 0.7);
+  --bg-glass: rgba(15, 23, 42, 0.6);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(59, 130, 246, 0.3);
+  
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  
+  --color-primary: #3b82f6; /* Electric Blue */
+  --color-primary-hover: #2563eb;
+  --color-primary-rgb: 59, 130, 246;
+  
+  --color-accent: #a855f7; /* Vibrant Purple */
+  --color-accent-hover: #9333ea;
+  
+  --color-success: #10b981; /* Emerald */
+  --color-warning: #f59e0b; /* Amber */
+  --color-danger: #ef4444; /* Rose */
+  --color-info: #06b6d4; /* Cyan */
+
+  /* Spacing & Borders */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.15);
+  
+  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
