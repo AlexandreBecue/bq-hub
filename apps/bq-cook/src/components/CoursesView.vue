@@ -1,12 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { db, generateId, type RecordEntry } from '../db';
-import { ACHATS_COL_ID, getStockRecords, getPurchaseRecords, runStockAutomations, formatToFrenchDate } from '../db/queries';
+import { ACHATS_COL_ID, SUGGESTIONS_COL_ID, getStockRecords, getPurchaseRecords, getPlanningRecords, runStockAutomations, formatToFrenchDate } from '../db/queries';
 import { findGenericProduct, cleanRayon, getCategoryFromRayon } from '../db/ticket-parser';
-import { ShoppingBag, FileText, Check, Trash2, X, Sparkles } from '@lucide/vue';
+import { ShoppingBag, FileText, Check, X, Sparkles, ShoppingCart, Receipt, ArrowRight } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
+
+const toast = useToast();
 
 const stocks = ref<RecordEntry[]>([]);
 const purchases = ref<RecordEntry[]>([]);
+
+const lastSessionPurchases = computed(() => {
+  if (purchases.value.length === 0) return [];
+  const lastDate = purchases.value[0].data.date;
+  return purchases.value.filter(rec => rec.data.date === lastDate);
+});
 
 // Shopping List states
 const autoShoppingList = ref<RecordEntry[]>([]);
@@ -23,11 +32,25 @@ const isSaving = ref(false);
 const loadData = async () => {
   stocks.value = await getStockRecords();
   purchases.value = await getPurchaseRecords();
+  const plannings = await getPlanningRecords();
   
-  // Calculate automatic shopping list: anything where quantite <= seuil_d_alerte
-  autoShoppingList.value = stocks.value.filter(
-    item => Number(item.data.quantite || 0) <= Number(item.data.seuil_d_alerte || 0)
-  );
+  // Extract ingredients needed by upcoming planned meals
+  const activePlannings = plannings.filter(p => p.data.statut === 'Prévu' && !p.data.stock_decremente);
+  const neededIngredientIds = new Set<string>();
+  activePlannings.forEach(p => {
+    (p.data.ingredients_consommes || []).forEach((id: string) => neededIngredientIds.add(id));
+  });
+
+  // Calculate automatic shopping list:
+  // 1. Quantite < seuil_d_alerte strictement (quantite == seuil est considere suffisant)
+  // 2. OU requis par un repas prévu et stock insuffisant
+  autoShoppingList.value = stocks.value.filter(item => {
+    const qty = Number(item.data.quantite || 0);
+    const seuil = Number(item.data.seuil_d_alerte || 0);
+    if (qty < seuil) return true;
+    if (neededIngredientIds.has(item.id!) && qty < 1) return true;
+    return false;
+  });
 };
 
 onMounted(() => {
@@ -166,10 +189,15 @@ const handleSaveImportedTicket = async () => {
   if (!parsedLines.value.length) return;
   isSaving.value = true;
   try {
+
+    let totalEstime = 0;
     for (const line of parsedLines.value) {
       // Find the product string name corresponding to the selected stock item ID
       const matchedStock = stocks.value.find(item => item.id === line.produit_generique);
       const prodGenName = matchedStock ? (matchedStock.data.nom || '') : '';
+
+      const lineTotal = Number(line.prix_total) || (Number(line.quantite) * Number(line.prix)) || 0;
+      totalEstime += lineTotal;
 
       const recordEntry: RecordEntry = {
         id: `rec-${generateId()}`,
@@ -180,7 +208,7 @@ const handleSaveImportedTicket = async () => {
           produit_generique: prodGenName,
           quantite: Number(line.quantite) || 1,
           prix: Number(line.prix) || 0,
-          prix_total: Number(line.prix_total) || (Number(line.quantite) * Number(line.prix)),
+          prix_total: lineTotal,
           contenance_unitaire: line.contenance_unitaire ? Number(line.contenance_unitaire) : null,
           rayon: line.rayon,
           categorie: line.categorie
@@ -193,24 +221,39 @@ const handleSaveImportedTicket = async () => {
       await runStockAutomations(recordEntry, true);
     }
 
+    // CROSS-APP SUGGESTION TO BQ-BANK
+    try {
+      const sugRecord: RecordEntry = {
+        id: `rec-${generateId()}`,
+        collectionId: SUGGESTIONS_COL_ID,
+        data: {
+          source_app: 'bq-cook',
+          action: 'Nouvelle Dépense',
+          payload: JSON.stringify({
+            date: ticketDate.value || new Date().toISOString().split('T')[0],
+            montant: parseFloat(totalEstime.toFixed(2)),
+            partenaire: 'Supermarché (Courses)',
+            commentaire: `Achat panier de courses (${parsedLines.value.length} articles)`,
+            budget: 'Courses'
+          }),
+          status: 'pending'
+        },
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await db.records.add(sugRecord);
+    } catch (e) {
+      console.error('Erreur creation suggestion bq-bank:', e);
+    }
+
+
     showTicketModal.value = false;
     await loadData();
-    alert(`Importation réussie ! ${parsedLines.value.length} articles enregistrés.`);
+    toast.success(`Importation réussie ! ${parsedLines.value.length} articles enregistrés.`);
   } catch (err) {
     console.error('Erreur lors de la sauvegarde du ticket:', err);
   } finally {
     isSaving.value = false;
-  }
-};
-
-const handleDeleteAchat = async (id: string) => {
-  if (confirm('Supprimer cette ligne d\'achat ?')) {
-    try {
-      await db.records.update(id, { deletedAt: Date.now(), updatedAt: Date.now() });
-      await loadData();
-    } catch (err) {
-      console.error(err);
-    }
   }
 };
 </script>
@@ -219,8 +262,8 @@ const handleDeleteAchat = async (id: string) => {
   <div class="courses-view">
     <div class="view-header-row">
       <div class="title-sub">
-        <h2>Mes Courses & Achats</h2>
-        <p class="desc">Vérifie ta liste de courses ou importe un ticket Leclerc</p>
+        <h2>Liste & historique</h2>
+        <p class="desc">Vérifie ta liste de courses ou importe un ticket de caisse</p>
       </div>
       <button @click="openTicketModal" class="btn btn-primary btn-sm">
         <FileText class="btn-icon" /> Importer un ticket
@@ -230,7 +273,7 @@ const handleDeleteAchat = async (id: string) => {
     <div class="courses-grid">
       <!-- Left column: Shopping list -->
       <div class="card glass text-left list-card">
-        <h3>🛒 Liste de Courses Automatique</h3>
+        <h3><ShoppingCart :size="18" /> Liste de courses automatique</h3>
         <p class="section-desc">Produits dont les stocks sont épuisés ou inférieurs à ton seuil d'alerte.</p>
         
         <div class="shopping-list">
@@ -260,23 +303,24 @@ const handleDeleteAchat = async (id: string) => {
 
       <!-- Right column: Purchases history -->
       <div class="card glass text-left list-card">
-        <h3>📜 Historique Récent des Achats</h3>
+        <h3><Receipt :size="18" /> Dernier passage en caisse</h3>
+        <p v-if="lastSessionPurchases.length > 0" class="section-desc">
+          Articles achetés le {{ formatToFrenchDate(lastSessionPurchases[0].data.date) }}.
+        </p>
+        <p v-else class="section-desc">Aucun achat récent enregistré.</p>
+
         <div class="history-list">
-          <div v-if="purchases.length === 0" class="empty-list">
+          <div v-if="lastSessionPurchases.length === 0" class="empty-list">
             <ShoppingBag class="empty-icon-muted" />
             <p>Aucun historique d'achats enregistré.</p>
           </div>
-          <div v-else v-for="rec in purchases.slice(0, 15)" :key="rec.id" class="history-item-row">
+          <div v-else v-for="rec in lastSessionPurchases" :key="rec.id" class="history-item-row">
             <div class="history-left">
-              <span class="hist-date">{{ formatToFrenchDate(rec.data.date) }}</span>
               <span class="hist-name">{{ rec.data.article }}</span>
-              <span class="hist-generic">➡️ {{ rec.data.produit_generique || 'Sans correspondance' }}</span>
+              <span v-if="rec.data.produit_generique" class="hist-generic"><ArrowRight :size="12" /> {{ rec.data.produit_generique }}</span>
             </div>
             <div class="history-right">
-              <span class="hist-price">{{ rec.data.prix_total }} €</span>
-              <button @click="handleDeleteAchat(rec.id!)" class="btn-action-round delete btn-xs" title="Supprimer de l'historique">
-                <Trash2 class="trash-icon-xs" />
-              </button>
+              <span class="hist-price">{{ rec.data.prix_total }}&nbsp;€</span>
             </div>
           </div>
         </div>
@@ -289,18 +333,18 @@ const handleDeleteAchat = async (id: string) => {
         <div v-if="showTicketModal" class="modal-overlay" @click.self="showTicketModal = false">
           <div class="modal-card card glass fade-in" :class="{ 'wide-modal': isParsed }">
             <div class="modal-header">
-              <h2>Importer un Ticket Leclerc</h2>
+              <h2>Importer un ticket de caisse</h2>
               <button @click="showTicketModal = false" class="btn-close-modal"><X /></button>
             </div>
             
             <div class="modal-body text-left">
               <!-- Step 1: Text Saisie -->
               <div v-if="!isParsed" class="step-saisie">
-                <p class="modal-intro">Colle le texte brut de ton ticket reçu par e-mail ou depuis l'application Leclerc pour l'analyser automatiquement.</p>
+                <p class="modal-intro">Colle le texte brut de ton ticket de caisse pour l'analyser automatiquement.</p>
                 
                 <div class="form-group mt-3">
                   <label for="tDate">Date des courses</label>
-                  <input id="tDate" v-model="ticketDate" type="date" class="form-control" style="max-width: 200px;" />
+                  <input id="tDate" v-model="ticketDate" type="date" class="form-control date-input-max" />
                 </div>
 
                 <div class="form-group mt-3">
@@ -319,10 +363,10 @@ const handleDeleteAchat = async (id: string) => {
                       <tr>
                         <th>Article brut</th>
                         <th>Associer au produit en Stock</th>
-                        <th class="text-center" style="width: 80px;">Qté</th>
-                        <th class="text-center" style="width: 90px;">P.U. (€)</th>
-                        <th class="text-center" style="width: 100px;">Pack</th>
-                        <th class="text-right" style="width: 50px;"></th>
+                        <th class="text-center col-80">Qté</th>
+                        <th class="text-center col-90">P.U. (€)</th>
+                        <th class="text-center col-100">Pack</th>
+                        <th class="text-right col-50"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -346,7 +390,7 @@ const handleDeleteAchat = async (id: string) => {
                           <input type="number" step="1" v-model.number="line.contenance_unitaire" class="form-control text-center text-sm" placeholder="Contenance" />
                         </td>
                         <td class="text-right">
-                          <button @click="parsedLines.splice(idx, 1)" class="btn-action-round delete btn-xs">
+                          <button @click="parsedLines.splice(idx, 1)" class="action-btn delete" title="Supprimer la ligne">
                             <X class="action-icon" />
                           </button>
                         </td>
@@ -404,7 +448,7 @@ const handleDeleteAchat = async (id: string) => {
 
 .section-desc {
   font-size: 0.85rem;
-  color: var(--text-secondary);
+  color: var(--text-sub);
   margin: 0;
 }
 
@@ -430,7 +474,7 @@ const handleDeleteAchat = async (id: string) => {
   .empty-icon-green {
     width: 32px;
     height: 32px;
-    color: #10b981;
+    color: var(--color-success);
   }
   
   .empty-icon-muted {
@@ -445,7 +489,7 @@ const handleDeleteAchat = async (id: string) => {
   transition: var(--transition);
   
   &:hover {
-    background-color: rgba(255, 255, 255, 0.015);
+    background-color: color-mix(in srgb, var(--color-white) 2%, transparent);
   }
   
   &.item-checked {
@@ -496,6 +540,9 @@ const handleDeleteAchat = async (id: string) => {
     font-size: 0.8rem;
     color: var(--color-primary);
     font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
   }
 }
 
@@ -507,6 +554,7 @@ const handleDeleteAchat = async (id: string) => {
   .hist-price {
     font-weight: 800;
     color: var(--text-primary);
+    white-space: nowrap;
   }
 }
 
@@ -520,10 +568,30 @@ const handleDeleteAchat = async (id: string) => {
   max-width: 900px !important;
 }
 
+.date-input-max {
+  max-width: 200px;
+}
+
+.col-80 {
+  width: 80px;
+}
+
+.col-90 {
+  width: 90px;
+}
+
+.col-100 {
+  width: 100px;
+}
+
+.col-50 {
+  width: 50px;
+}
+
 .code-text {
   font-family: monospace;
   font-size: 0.9rem;
-  background-color: rgba(0, 0, 0, 0.25);
+  background-color: color-mix(in srgb, var(--color-black) 25%, transparent);
   line-height: 1.4;
 }
 
@@ -532,7 +600,7 @@ const handleDeleteAchat = async (id: string) => {
   overflow-y: auto;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background-color: rgba(0, 0, 0, 0.15);
+  background-color: color-mix(in srgb, var(--color-black) 15%, transparent);
 }
 
 .parsed-table {
@@ -546,9 +614,9 @@ const handleDeleteAchat = async (id: string) => {
   }
   
   th {
-    background-color: rgba(0, 0, 0, 0.25);
+    background-color: color-mix(in srgb, var(--color-black) 25%, transparent);
     font-weight: 700;
-    color: var(--text-secondary);
+    color: var(--text-sub);
   }
 }
 

@@ -4,9 +4,10 @@ import { db, type RecordEntry } from '../db/index';
 import { 
   getDecksRecords, 
   getCardsRecords, 
-  isCardDue 
+  isCardDue,
+  calculateSM2
 } from '../db/queries';
-import { Check, X, ArrowLeft, Award, RotateCcw, BookOpen } from '@lucide/vue';
+import { ArrowLeft, Award, RotateCcw, BookOpen, Brain, ShieldCheck, X, AlertCircle, Check } from '@lucide/vue';
 
 const props = defineProps<{
   deckId: string | null; // null means global review
@@ -70,7 +71,7 @@ onMounted(() => {
 });
 
 const activeDeckName = computed(() => {
-  if (!props.deckId) return 'Révision Globale 🌐';
+  if (!props.deckId) return 'Révision Globale';
   const d = decks.value.find(deck => deck.id === props.deckId);
   return d ? d.data.nom : 'Deck inconnu';
 });
@@ -86,18 +87,19 @@ const flipCard = () => {
 };
 
 // Handle Leitner Verdict
-const handleVerdict = async (knewIt: boolean) => {
+const handleVerdict = async (q: number) => {
   if (!currentCard.value) return;
 
   const cardId = currentCard.value.id!;
-  const currentBox = Number(currentCard.value.data.box) || 1;
   const currentTries = Number(currentCard.value.data.nb_essais) || 0;
   const currentSuccesses = Number(currentCard.value.data.nb_reussites) || 0;
+  const currentRepetitions = Number(currentCard.value.data.repetitions) || 0;
+  const currentInterval = Number(currentCard.value.data.interval) || 0;
+  const currentEaseFactor = Number(currentCard.value.data.ease_factor) || 2.5;
 
-  // Leitner progression rule
-  let nextBox = 1; // classic Leitner: demote back to Box 1 on mistake!
-  if (knewIt) {
-    nextBox = Math.min(currentBox + 1, 5); // promote up to Box 5
+  const { repetitions: nextRepetitions, interval: nextInterval, easeFactor: nextEaseFactor } = calculateSM2(q, currentRepetitions, currentInterval, currentEaseFactor);
+
+  if (q >= 3) {
     successCount.value++;
   }
 
@@ -106,10 +108,13 @@ const handleVerdict = async (knewIt: boolean) => {
   try {
     // 1. Update in Dexie
     await db.records.update(cardId, {
-      'data.box': nextBox,
+      'data.interval': nextInterval,
+      'data.repetitions': nextRepetitions,
+      'data.ease_factor': nextEaseFactor,
+
       'data.dernier_examen': Date.now(),
       'data.nb_essais': currentTries + 1,
-      'data.nb_reussites': knewIt ? currentSuccesses + 1 : currentSuccesses,
+      'data.nb_reussites': q >= 3 ? currentSuccesses + 1 : currentSuccesses,
       updatedAt: Date.now()
     });
 
@@ -138,7 +143,7 @@ const quitSession = () => {
       <button @click="quitSession" class="btn btn-secondary btn-sm flex-row">
         <ArrowLeft :size="16" /> Retour
       </button>
-      <h2>🧠 {{ activeDeckName }}</h2>
+      <h2><Brain :size="20" /> {{ activeDeckName }}</h2>
     </div>
 
     <div v-if="isLoading" class="text-center py-4">
@@ -149,12 +154,12 @@ const quitSession = () => {
     <div v-else-if="sessionCards.length === 0 && !isSessionFinished" class="empty-due-screen text-center card glass max-width-600">
       <ShieldCheck class="mx-auto mb-2 text-primary icon-bounce" :size="48" />
       <h3>Aucune carte due aujourd'hui !</h3>
-      <p class="text-secondary mt-2">
+      <p class="text-sub mt-2">
         Félicitations, ta mémoire est en ordre pour cette catégorie ! Tu peux revenir demain ou lancer une session d'entraînement libre.
       </p>
       
       <div class="flex-row justify-center gap-3 mt-4">
-        <button @click="startSession(true)" class="btn btn-accent flex-row">
+        <button @click="startSession(true)" class="btn btn-secondary flex-row">
           <BookOpen :size="14" /> Entraînement libre
         </button>
         <button @click="quitSession" class="btn btn-secondary">
@@ -192,7 +197,7 @@ const quitSession = () => {
 
           <!-- Verso (Back): Answer -->
           <div class="card glass flashcard-face flashcard-back">
-            <span class="face-badge font-bold text-xs uppercase text-accent mb-4 block">Réponse</span>
+            <span class="face-badge font-bold text-xs uppercase text-sub mb-4 block">Réponse</span>
             <div class="card-text-content">
               {{ currentCard.data.reponse }}
             </div>
@@ -202,16 +207,25 @@ const quitSession = () => {
       </div>
 
       <!-- Verdict Actions buttons (Visible only when answer is flipped/seen) -->
-      <div class="verdict-actions-container mt-4" v-if="isFlipped">
-        <button @click.stop="handleVerdict(false)" class="btn btn-danger btn-verdict flex-row justify-center">
-          <X :size="18" /> Je me suis trompé (Boîte 1)
-        </button>
-        <button @click.stop="handleVerdict(true)" class="btn btn-primary btn-verdict flex-row justify-center">
-          <Check :size="18" /> Je savais ! (Boîte +1)
-        </button>
+      <div class="verdict-actions-container mt-4 flex-col gap-2 w-100" v-if="isFlipped">
+        <h4 class="text-center text-sm font-bold text-muted mb-2">Évalue ta réponse :</h4>
+        <div class="verdict-three-buttons flex-row justify-between w-100 gap-3">
+          <button @click.stop="handleVerdict(1)" class="btn btn-verdict verdict-incorrect flex-row align-center justify-center flex-1" title="Incorrect (À revoir)">
+            <X :size="16" />
+            <span>Incorrect</span>
+          </button>
+          <button @click.stop="handleVerdict(3)" class="btn btn-verdict verdict-partial flex-row align-center justify-center flex-1" title="Partiellement correct (Difficile)">
+            <AlertCircle :size="16" />
+            <span>Partiel</span>
+          </button>
+          <button @click.stop="handleVerdict(5)" class="btn btn-verdict verdict-correct flex-row align-center justify-center flex-1" title="Correct (Maîtrisé)">
+            <Check :size="16" />
+            <span>Correct</span>
+          </button>
+        </div>
       </div>
       <div class="verdict-actions-container mt-4 justify-center" v-else>
-        <button @click="flipCard" class="btn btn-accent flex-row font-bold justify-center px-8 py-3">
+        <button @click="flipCard" class="btn btn-secondary flex-row font-bold justify-center px-8 py-3">
           Retourner la carte <RotateCcw :size="16" />
         </button>
       </div>
@@ -220,26 +234,26 @@ const quitSession = () => {
     <!-- SCREEN 3: Trophy Victory Session Complete -->
     <div v-else-if="isSessionFinished" class="session-complete-screen text-center card glass max-width-600">
       <Award class="mx-auto mb-2 text-warning icon-award-bounce" :size="54" />
-      <h3 class="font-black text-xl text-warning">Session Terminée ! 🎉</h3>
-      <p class="text-secondary text-sm mt-1">Excellent travail d'ancrage mémoriel.</p>
+      <h3 class="font-black text-xl text-warning">Session Terminée !</h3>
+      <p class="text-sub text-sm mt-1">Excellent travail d'ancrage mémoriel.</p>
 
       <div class="session-stats-card card glass mt-4">
         <div class="stats-row flex-row justify-between mb-2">
-          <span class="lbl text-secondary">Cartes révisées :</span>
+          <span class="lbl text-sub">Cartes révisées :</span>
           <span class="val font-black">{{ totalReviewed }}</span>
         </div>
         <div class="stats-row flex-row justify-between mb-2">
-          <span class="lbl text-secondary">Bonnes réponses :</span>
+          <span class="lbl text-sub">Bonnes réponses :</span>
           <span class="val font-black text-success">{{ successCount }}</span>
         </div>
         <div class="stats-row flex-row justify-between">
-          <span class="lbl text-secondary">Taux de réussite :</span>
-          <span class="val font-black text-accent">{{ totalReviewed > 0 ? Math.round((successCount / totalReviewed) * 100) : 0 }} %</span>
+          <span class="lbl text-sub">Taux de réussite :</span>
+          <span class="val font-black text-sub">{{ totalReviewed > 0 ? Math.round((successCount / totalReviewed) * 100) : 0 }} %</span>
         </div>
       </div>
 
       <div class="flex-row justify-center gap-3 mt-4">
-        <button @click="startSession(isFreeMode)" class="btn btn-accent flex-row">
+        <button @click="startSession(isFreeMode)" class="btn btn-secondary flex-row">
           <RotateCcw :size="14" /> Recommencer
         </button>
         <button @click="quitSession" class="btn btn-secondary">
@@ -310,13 +324,13 @@ const quitSession = () => {
 }
 
 .flashcard-front {
-  background-color: #1e293b;
+  background-color: var(--bg-secondary);
 }
 
 .flashcard-back {
-  background-color: #111827;
+  background-color: var(--bg-primary);
   transform: rotateY(180deg);
-  border-color: rgba(167, 139, 250, 0.2);
+  border-color: color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
 .card-text-content {
@@ -348,7 +362,7 @@ const quitSession = () => {
 }
 
 .session-stats-card {
-  background-color: rgba(15, 23, 42, 0.4);
+  background-color: var(--bg-glass);
   max-width: 320px;
   margin: 0 auto;
   border: 1px solid var(--border-color);
@@ -368,13 +382,13 @@ const quitSession = () => {
 }
 
 @keyframes awardBounce {
-  0% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.1)); }
-  100% { transform: scale(1.1); filter: drop-shadow(0 0 15px rgba(245, 158, 11, 0.4)); }
+  0% { transform: scale(1); filter: drop-shadow(0 0 4px color-mix(in srgb, var(--color-warning) 10%, transparent)); }
+  100% { transform: scale(1.1); filter: drop-shadow(0 0 15px color-mix(in srgb, var(--color-warning) 40%, transparent)); }
 }
 
 .block { display: block; }
-.text-success { color: #34d399 !important; }
-.text-danger { color: #f87171 !important; }
+.text-success { color: var(--color-success) !important; }
+.text-danger { color: var(--color-danger) !important; }
 
 .mini-spinner {
   width: 24px;
@@ -389,4 +403,65 @@ const quitSession = () => {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+.verdict-three-buttons {
+  display: flex;
+  gap: 0.75rem;
+  
+  @media (max-width: 480px) {
+    gap: 0.5rem;
+  }
+}
+
+.btn-verdict {
+  padding: 0.75rem 0.5rem;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border-color);
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+
+  &.verdict-incorrect {
+    background-color: color-mix(in srgb, var(--color-danger) 15%, transparent);
+    color: var(--color-danger);
+    border-color: color-mix(in srgb, var(--color-danger) 40%, transparent);
+
+    &:hover {
+      background-color: var(--color-danger);
+      color: var(--color-white);
+    }
+  }
+
+  &.verdict-partial {
+    background-color: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+    border-color: color-mix(in srgb, var(--color-warning) 40%, transparent);
+
+    &:hover {
+      background-color: var(--color-warning);
+      color: var(--color-black, #0b0f19);
+    }
+  }
+
+  &.verdict-correct {
+    background-color: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+    border-color: color-mix(in srgb, var(--color-success) 40%, transparent);
+
+    &:hover {
+      background-color: var(--color-success);
+      color: var(--color-white);
+    }
+  }
+}
 </style>
+

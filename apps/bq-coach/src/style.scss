@@ -1,0 +1,10 @@
+@use "@bq/theme/style.scss" as *;
+
+:root {
+  --color-primary: var(--color-bq-coach);
+  --color-primary-hover: var(--color-bq-coach-hover);
+  --color-primary-contrast: var(--color-bq-coach-contrast);
+  --color-secondary: var(--color-yellow);
+  --color-secondary-hover: var(--color-yellow-hover);
+  --color-secondary-contrast: var(--color-yellow-contrast);
+}

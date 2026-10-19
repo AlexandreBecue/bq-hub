@@ -6,7 +6,7 @@ import {
   getCardsRecords, 
   isCardDue 
 } from '../db/queries';
-import { BookOpen, Brain, ArrowRight } from '@lucide/vue';
+import { BookOpen, ArrowRight, Flame } from '@lucide/vue';
 
 const emit = defineEmits(['start-session']);
 
@@ -71,8 +71,8 @@ const startRevision = (deckId: string | null) => {
   <div class="home-view">
     <div class="view-header">
       <div>
-        <h2>🧠 Mes Decks & Apprentissage</h2>
-        <p class="text-secondary">Entraîne ton cerveau avec la répétition espacée. Saisis tes fiches mémo et révise-les au bon moment pour ancrer tes connaissances.</p>
+        <h2>Révision</h2>
+        <p class="text-sub">Entraîne ton cerveau avec la répétition espacée. Saisis tes fiches mémo et révise-les au bon moment pour ancrer tes connaissances.</p>
       </div>
     </div>
 
@@ -87,26 +87,25 @@ const startRevision = (deckId: string | null) => {
           <div class="banner-info">
             <span class="lbl font-bold text-xs text-muted block uppercase mb-1">Mémorisation Leitner active</span>
             <h3 class="banner-title font-black text-xl flex-row gap-2">
-              <Brain class="text-primary" :size="24" /> 
               {{ totalDueCount }} {{ totalDueCount > 1 ? 'cartes sont' : 'carte est' }} prête à être révisée !
             </h3>
-            <p class="text-secondary text-xs mt-1">Mélange toutes les catégories dues pour un entraînement global.</p>
+            <p class="text-sub text-xs mt-1">Mélange toutes les catégories dues pour un entraînement global.</p>
           </div>
           <button 
             @click="startRevision(null)" 
             class="btn btn-primary font-black uppercase text-sm"
             :disabled="totalDueCount === 0"
           >
-            Révision Globale <ArrowRight :size="16" />
+            Révision globale
           </button>
         </div>
       </div>
 
       <!-- Decks Grid -->
-      <h3 class="font-bold flex-row mb-3"><BookOpen :size="18" class="text-accent" /> Mes Paquets de Cartes</h3>
+      <h3 class="font-bold flex-row mb-3"><BookOpen :size="18" class="text-sub" /> Catégories de révision</h3>
       
       <div v-if="decksWithStats.length === 0" class="text-center py-4 text-muted text-sm">
-        <p>Aucun deck de quiz configuré. Crée un paquet dans l'onglet Éditeur.</p>
+        <p>Aucun deck de quiz configuré. Crée un paquet dans l'onglet <strong>Éditeur</strong>.</p>
       </div>
 
       <div v-else class="decks-grid">
@@ -118,12 +117,12 @@ const startRevision = (deckId: string | null) => {
           <div class="deck-main-info">
             <div class="deck-title-row flex-row mb-1">
               <h4 class="deck-name font-black text-md leading-snug">{{ d.nom }}</h4>
-              <span class="badge badge-warning text-xs font-bold" v-if="d.dueCount > 0">
-                🔥 {{ d.dueCount }} dues
+              <span class="badge badge-warning text-xs font-bold flex-row align-center gap-1" v-if="d.dueCount > 0">
+                <Flame :size="12" /> {{ d.dueCount }} dues
               </span>
             </div>
             <p class="deck-desc text-xs text-muted leading-relaxed" v-if="d.description">{{ d.description }}</p>
-            <p class="deck-total-cards text-xs text-secondary mt-2"><strong>{{ d.totalCount }}</strong> cartes au total</p>
+            <p class="deck-total-cards text-xs text-sub mt-2"><strong>{{ d.totalCount }}</strong> cartes au total</p>
 
             <!-- Box progression indicators -->
             <div class="box-progression-ledger mt-3 flex-row gap-1">
@@ -140,7 +139,7 @@ const startRevision = (deckId: string | null) => {
             </div>
           </div>
 
-          <button @click="startRevision(d.id)" class="btn btn-accent btn-sm flex-row font-bold">
+          <button @click="startRevision(d.id)" class="btn btn-secondary btn-sm flex-row font-bold">
             Révise <ArrowRight :size="14" />
           </button>
         </div>
@@ -156,8 +155,8 @@ const startRevision = (deckId: string | null) => {
 }
 
 .global-review-banner {
-  border-color: rgba(236, 72, 153, 0.25);
-  background-color: rgba(236, 72, 153, 0.01);
+  border-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  background-color: color-mix(in srgb, var(--color-primary) 1%, transparent);
   padding: 1.5rem !important;
 }
 
@@ -198,19 +197,19 @@ const startRevision = (deckId: string | null) => {
   color: #ffffff;
   transition: var(--transition);
   
-  &.box-level-1 { background-color: #ef4444; } /* Red (least mastered) */
-  &.box-level-2 { background-color: #f97316; } /* Orange */
-  &.box-level-3 { background-color: #f59e0b; } /* Yellow */
-  &.box-level-4 { background-color: #84cc16; } /* Lime */
-  &.box-level-5 { background-color: #10b981; } /* Emerald (Mastered!) */
+  &.box-level-1 { background-color: var(--color-danger); } /* Red (least mastered) */
+  &.box-level-2 { background-color: var(--color-warning); } /* Orange */
+  &.box-level-3 { background-color: var(--color-warning); } /* Yellow */
+  &.box-level-4 { background-color: var(--color-success); } /* Lime */
+  &.box-level-5 { background-color: var(--color-success); } /* Emerald (Mastered!) */
 }
 
 .box-num {
   transform: translateY(-0.5px);
 }
 
-.text-success { color: #34d399 !important; }
-.text-danger { color: #f87171 !important; }
+.text-success { color: var(--color-success) !important; }
+.text-danger { color: var(--color-danger) !important; }
 
 .text-xs { font-size: 0.75rem; }
 .text-sm { font-size: 0.85rem; }

@@ -7,8 +7,10 @@ import {
   formatToFrenchDate 
 } from '../db/queries';
 import { Plus, X, ShieldCheck, ShieldAlert } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
+const toast = useToast();
 
 const vaccins = ref<RecordEntry[]>([]);
 const isLoading = ref(true);
@@ -45,7 +47,7 @@ onMounted(() => {
 // Handle Log
 const handleAddVaccin = async () => {
   if (!formVaccin.value.vaccin.trim()) {
-    alert('Veuillez saisir le nom commercial du vaccin.');
+    toast.warning('Veuillez saisir le nom commercial du vaccin.');
     return;
   }
 
@@ -75,7 +77,7 @@ const handleAddVaccin = async () => {
     };
     emit('data-updated');
     loadData();
-    alert('Vaccination enregistrée !');
+    toast.success('Vaccination enregistrée !');
   } catch (err) {
     console.error(err);
   }
@@ -83,7 +85,6 @@ const handleAddVaccin = async () => {
 
 // Delete record
 const handleDeleteVaccin = async (id: string) => {
-  if (!confirm('Supprimer ce vaccin ?')) return;
   try {
     await db.records.update(id, {
       deletedAt: Date.now(),
@@ -101,8 +102,8 @@ const handleDeleteVaccin = async (id: string) => {
   <div class="vaccins-view">
     <div class="view-header">
       <div>
-        <h2>💉 Mes Vaccinations</h2>
-        <p class="text-secondary">Enregistre ton historique de vaccinations et planifie tes prochains rappels de vaccins.</p>
+        <h2>Vaccinations</h2>
+        <p class="text-sub">Enregistre ton historique de vaccinations et planifie tes prochains rappels de vaccins.</p>
       </div>
       <div class="view-actions">
         <button @click="showAddModal = true" class="btn btn-primary">
@@ -114,7 +115,7 @@ const handleDeleteVaccin = async (id: string) => {
     <!-- Main Content layout -->
     <div class="vaccins-dashboard-layout">
       <div class="card glass">
-        <h3 class="font-bold flex-row mb-4"><ShieldCheck :size="18" class="text-primary" /> Carnet de Vaccination</h3>
+        <h3 class="font-bold flex-row mb-4"><ShieldCheck :size="18" /> Carnet de vaccination</h3>
         
         <div v-if="isLoading" class="text-center py-4">
           <div class="spinner"></div>
@@ -134,9 +135,9 @@ const handleDeleteVaccin = async (id: string) => {
               
               <div>
                 <h4 class="v-name font-bold text-sm">{{ v.data.vaccin }} <span class="badge badge-primary text-xs ml-1">{{ v.data.type }}</span></h4>
-                <p class="v-dates text-xs text-secondary mt-0.5">
+                <p class="v-dates text-xs text-sub mt-0.5">
                   Fait le : {{ formatToFrenchDate(v.data.date) }}
-                  <span v-if="v.data.prochain_rappel"> • Prochain rappel : <strong class="text-accent">{{ formatToFrenchDate(v.data.prochain_rappel) }}</strong></span>
+                  <span v-if="v.data.prochain_rappel"> • Prochain rappel : <strong class="text-sub">{{ formatToFrenchDate(v.data.prochain_rappel) }}</strong></span>
                 </p>
               </div>
             </div>
@@ -156,7 +157,7 @@ const handleDeleteVaccin = async (id: string) => {
     <div v-if="showAddModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>💉 Enregistrer un Vaccin</h3>
+          <h3>Enregistrer un vaccin</h3>
           <button @click="showAddModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
@@ -217,7 +218,7 @@ const handleDeleteVaccin = async (id: string) => {
 
 .vaccine-row-card {
   border: 1px solid var(--border-color);
-  background-color: rgba(255, 255, 255, 0.01);
+  background-color: color-mix(in srgb, var(--color-white) 1%, transparent);
   border-radius: var(--radius-sm);
   padding: 0.75rem 1rem;
 }
@@ -233,12 +234,12 @@ const handleDeleteVaccin = async (id: string) => {
   align-self: center;
   
   &.done {
-    background-color: rgba(16, 185, 129, 0.1);
-    color: #34d399;
+    background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
+    color: var(--color-success);
   }
   &.todo {
-    background-color: rgba(245, 158, 11, 0.1);
-    color: #fbbf24;
+    background-color: color-mix(in srgb, var(--color-warning) 10%, transparent);
+    color: var(--color-warning);
   }
 }
 
@@ -261,8 +262,8 @@ const handleDeleteVaccin = async (id: string) => {
   gap: 1rem;
 }
 
-.text-success { color: #34d399 !important; }
-.text-danger { color: #f87171 !important; }
+.text-success { color: var(--color-success) !important; }
+.text-danger { color: var(--color-danger) !important; }
 
 .text-xs { font-size: 0.75rem; }
 .text-sm { font-size: 0.85rem; }

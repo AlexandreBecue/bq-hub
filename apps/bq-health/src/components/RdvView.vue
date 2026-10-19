@@ -8,8 +8,10 @@ import {
   formatToFrenchDate 
 } from '../db/queries';
 import { Plus, Calendar, ShieldCheck, X, Clock, Sparkles } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
+const toast = useToast();
 
 const rdvs = ref<RecordEntry[]>([]);
 const isLoading = ref(true);
@@ -65,7 +67,7 @@ const sortedAppointments = computed(() => {
 const handleAddRdv = async () => {
   const doc = formRdv.value.praticien.trim();
   if (!doc) {
-    alert('Veuillez saisir le nom du praticien.');
+    toast.warning('Veuillez saisir le nom du praticien.');
     return;
   }
 
@@ -120,7 +122,7 @@ const handleAddRdv = async () => {
     showAddModal.value = false;
     emit('data-updated');
     loadData();
-    alert('Rendez-vous enregistré !');
+    toast.success('Rendez-vous enregistré !');
   } catch (err) {
     console.error(err);
   }
@@ -128,7 +130,6 @@ const handleAddRdv = async () => {
 
 // Delete record
 const handleDeleteRdv = async (id: string) => {
-  if (!confirm('Supprimer ce rendez-vous ?')) return;
   try {
     await db.records.update(id, {
       deletedAt: Date.now(),
@@ -146,8 +147,8 @@ const handleDeleteRdv = async (id: string) => {
   <div class="rdv-view">
     <div class="view-header">
       <div>
-        <h2>📅 Consultations & RDVs</h2>
-        <p class="text-secondary">Planifie tes rendez-vous de santé futurs et conserve un historique complet de tes visites chez le médecin.</p>
+        <h2>Consultations</h2>
+        <p class="text-sub">Planifie tes rendez-vous de santé futurs et conserve un historique complet de tes visites chez le médecin.</p>
       </div>
       <div class="view-actions">
         <button @click="showAddModal = true" class="btn btn-primary">
@@ -161,7 +162,7 @@ const handleDeleteRdv = async (id: string) => {
       <!-- Left Column: Upcoming Appointments -->
       <div class="upcoming-rdvs-col">
         <div class="card glass">
-          <h3 class="font-bold flex-row mb-4"><Clock :size="18" class="text-primary" /> Rendez-vous à venir</h3>
+          <h3 class="font-bold flex-row mb-4"><Clock :size="18" /> Rendez-vous à venir</h3>
           
           <div v-if="isLoading" class="text-center py-4">
             <div class="mini-spinner"></div>
@@ -181,7 +182,7 @@ const handleDeleteRdv = async (id: string) => {
                 <span class="badge badge-success text-xs font-bold flex-row"><Calendar :size="12" /> {{ formatToFrenchDate(r.data.date) }} <span v-if="r.data.heure">à {{ r.data.heure }}</span></span>
               </div>
               
-              <div class="rdv-card-body text-sm text-secondary mt-3">
+              <div class="rdv-card-body text-sm text-sub mt-3">
                 <p v-if="r.data.motif"><strong>Motif :</strong> {{ r.data.motif }}</p>
                 <p class="italic text-xs text-muted mt-2" v-if="r.data.notes">{{ r.data.notes }}</p>
               </div>
@@ -199,7 +200,7 @@ const handleDeleteRdv = async (id: string) => {
       <!-- Right Column: Past consultations -->
       <div class="past-rdvs-col">
         <div class="card glass">
-          <h3 class="font-bold flex-row mb-4"><ShieldCheck :size="18" class="text-accent" /> Consultations passées</h3>
+          <h3 class="font-bold flex-row mb-4"><ShieldCheck :size="18" class="text-sub" /> Consultations passées</h3>
           
           <div v-if="isLoading" class="text-center py-4">
             <div class="mini-spinner"></div>
@@ -219,7 +220,7 @@ const handleDeleteRdv = async (id: string) => {
                 <span class="badge badge-primary text-xs flex-row"><Calendar :size="12" /> Le {{ formatToFrenchDate(r.data.date) }}</span>
               </div>
               
-              <div class="rdv-card-body text-sm text-secondary mt-3">
+              <div class="rdv-card-body text-sm text-sub mt-3">
                 <p v-if="r.data.motif"><strong>Motif :</strong> {{ r.data.motif }}</p>
                 <p class="italic text-xs text-muted mt-2" v-if="r.data.notes">{{ r.data.notes }}</p>
               </div>
@@ -239,7 +240,7 @@ const handleDeleteRdv = async (id: string) => {
     <div v-if="showAddModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>📅 Enregistrer un Rendez-vous</h3>
+          <h3>Enregistrer un rendez-vous</h3>
           <button @click="showAddModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
@@ -319,13 +320,13 @@ const handleDeleteRdv = async (id: string) => {
 
 .rdv-card-item {
   border: 1px solid var(--border-color);
-  background-color: rgba(255, 255, 255, 0.01);
+  background-color: color-mix(in srgb, var(--color-white) 1%, transparent);
   border-radius: var(--radius-sm);
   padding: 0.85rem 1.15rem;
   
   &.past-item {
     opacity: 0.8;
-    background-color: rgba(30, 41, 59, 0.2);
+    background-color: color-mix(in srgb, var(--bg-secondary) 20%, transparent);
   }
 }
 

@@ -5,6 +5,11 @@
   "description": "Thème SCSS et variables partagées pour la suite d'applications bq-*",
   "exports": {
     "./_vars.scss": "./src/_vars.scss",
-    "./style.scss": "./src/style.scss"
+    "./style.scss": "./src/style.scss",
+    "./BaseSettings.vue": "./src/BaseSettings.vue",
+    "./AppHeader.vue": "./src/AppHeader.vue",
+    "./AppBottomNav.vue": "./src/AppBottomNav.vue",
+    "./useToast": "./src/useToast.ts",
+    "./ToastsContainer.vue": "./src/ToastsContainer.vue"
   }
 }

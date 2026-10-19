@@ -1,0 +1,10 @@
+@use "@bq/theme/style.scss" as *;
+
+:root {
+  --color-primary: var(--color-bq-watch);
+  --color-primary-hover: var(--color-bq-watch-hover);
+  --color-primary-contrast: var(--color-bq-watch-contrast);
+  --color-secondary: var(--color-orange);
+  --color-secondary-hover: var(--color-orange-hover);
+  --color-secondary-contrast: var(--color-orange-contrast);
+}

@@ -1,31 +1,54 @@
 import { db, type RecordEntry, type CollectionSchema, type FieldType } from './index';
 
 // Collection IDs (Abstract random IDs)
-export const DECKS_COL_ID = 'col-z8y4w1m9q';  // Decks / Catégories de cartes
-export const CARDS_COL_ID = 'col-k2x5p8w3t';  // Flashcards / Questions-Réponses
+export const DECKS_COL_ID = 'col-b7k4m1q8t';  // bq-learn - decks
+export const CARDS_COL_ID = 'col-f9p2v6x3z';  // bq-learn - flashcards
 
 /**
  * Checks if a card is due for review based on its box and last exam timestamp.
  * Uses 20-hour day intervals (standard SRS practice) to avoid review times shifting later daily.
  */
+
 export function isCardDue(card: RecordEntry): boolean {
   if (card.deletedAt) return false;
   
   const lastExam = Number(card.data.dernier_examen) || 0;
   if (!lastExam) return true; // Never reviewed = always due!
 
-  const box = Number(card.data.box) || 1;
+  const intervalDays = Number(card.data.interval) || 0;
+  if (intervalDays === 0) return true;
+
   const now = Date.now();
   const oneDayMs = 20 * 3600 * 1000; // 20 hours Day standard
-
-  let intervalDays = 1;
-  if (box === 2) intervalDays = 2;
-  else if (box === 3) intervalDays = 4;
-  else if (box === 4) intervalDays = 7;
-  else if (box === 5) intervalDays = 14;
-
+  
   return now - lastExam >= intervalDays * oneDayMs;
 }
+
+export function calculateSM2(q: number, repetitions: number, interval: number, easeFactor: number) {
+  let nextRepetitions = repetitions;
+  let nextInterval = interval;
+  let nextEaseFactor = easeFactor;
+
+  if (q >= 3) {
+    if (repetitions === 0) {
+      nextInterval = 1;
+    } else if (repetitions === 1) {
+      nextInterval = 6;
+    } else {
+      nextInterval = Math.round(interval * easeFactor);
+    }
+    nextRepetitions++;
+  } else {
+    nextRepetitions = 0;
+    nextInterval = 1;
+  }
+
+  nextEaseFactor = easeFactor + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
+  if (nextEaseFactor < 1.3) nextEaseFactor = 1.3;
+
+  return { repetitions: nextRepetitions, interval: nextInterval, easeFactor: nextEaseFactor };
+}
+
 
 /**
  * Initialize Dexie collections and seed default cards
@@ -40,7 +63,7 @@ export async function initializeCollections() {
   if (!colIds.includes(DECKS_COL_ID)) {
     newCols.push({
       id: DECKS_COL_ID,
-      name: 'Decks de Quiz',
+      name: 'bq-learn - decks',
       description: 'Paquets de cartes mémo par catégorie de connaissances',
       createdAt: Date.now(),
       primaryFieldKey: 'nom',
@@ -55,7 +78,7 @@ export async function initializeCollections() {
   if (!colIds.includes(CARDS_COL_ID)) {
     newCols.push({
       id: CARDS_COL_ID,
-      name: 'Flashcards',
+      name: 'bq-learn - flashcards',
       description: 'Questions et réponses mémorisables par boîte Leitner',
       createdAt: Date.now() + 10,
       primaryFieldKey: 'question',
@@ -75,15 +98,12 @@ export async function initializeCollections() {
     await db.collections.bulkAdd(newCols);
     console.log(`${newCols.length} collections initialisées.`);
   }
-
-  // Seed default Quiz Decks & Cards if completely empty
-  await seedDefaultQuizIfEmpty();
 }
 
 /**
  * Seed a complete default quiz deck about general culture and geography to play immediately!
  */
-async function seedDefaultQuizIfEmpty() {
+export async function seedDefaultQuizIfEmpty() {
   try {
     const decksCount = await db.records.where('collectionId').equals(DECKS_COL_ID).count();
     if (decksCount > 0) return;
@@ -94,7 +114,7 @@ async function seedDefaultQuizIfEmpty() {
       id: defaultDeckId,
       collectionId: DECKS_COL_ID,
       data: {
-        nom: '💡 Culture Générale',
+        nom: 'Culture Générale',
         description: 'Questions d\'histoire, sciences, géographie et arts de base.'
       },
       createdAt: Date.now(),

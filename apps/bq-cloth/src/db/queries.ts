@@ -1,10 +1,11 @@
-import { db, type RecordEntry, type CollectionSchema, type FieldType } from './index';
+import { db, type RecordEntry, type CollectionSchema, type FieldType, generateId } from './index';
 
 // Collection IDs matching bq-metrics exactly for seamless synchronization!
-export const CLOTHES_COL_ID = 'col-41w5uphny'; // Inventaire - Vêtements
-export const TENUES_COL_ID = 'col-cj7vz5e37';  // Tenues
-export const LESSIVES_COL_ID = 'col-lessives';  // Lessives (Nouvelle collection)
-export const TENUES_TYPES_COL_ID = 'col-tenues-types'; // Tenues Types (Nouvelle collection)
+export const CLOTHES_COL_ID = 'col-41w5uphny'; // bq-cloth - vêtements
+export const TENUES_COL_ID = 'col-cj7vz5e37';  // bq-cloth - tenues
+export const LESSIVES_COL_ID = 'col-v2r8m5k3q';  // bq-cloth - lessives
+export const TENUES_TYPES_COL_ID = 'col-j6t4y8n1b'; // bq-cloth - tenues types
+export const CONTEXTS_COL_ID = 'col-m9p2w7x4d'; // bq-cloth - contextes
 
 /**
  * Format a YYYY-MM-DD date into DD/MM/YYYY French format
@@ -30,7 +31,7 @@ export async function initializeCollections() {
   if (!colIds.includes(CLOTHES_COL_ID)) {
     newCols.push({
       id: CLOTHES_COL_ID,
-      name: 'Inventaire - Vêtements',
+      name: 'bq-cloth - vêtements',
       description: 'Gestion du dressing',
       createdAt: Date.now(),
       primaryFieldKey: 'nom',
@@ -50,7 +51,7 @@ export async function initializeCollections() {
   if (!colIds.includes(TENUES_COL_ID)) {
     newCols.push({
       id: TENUES_COL_ID,
-      name: 'Tenues',
+      name: 'bq-cloth - tenues',
       description: 'Suivi des tenues portées',
       createdAt: Date.now() + 10,
       primaryFieldKey: 'date',
@@ -66,7 +67,7 @@ export async function initializeCollections() {
   if (!colIds.includes(LESSIVES_COL_ID)) {
     newCols.push({
       id: LESSIVES_COL_ID,
-      name: 'Lessives',
+      name: 'bq-cloth - lessives',
       description: 'Historique des lessives effectuées',
       createdAt: Date.now() + 20,
       primaryFieldKey: 'date',
@@ -80,7 +81,7 @@ export async function initializeCollections() {
   if (!colIds.includes(TENUES_TYPES_COL_ID)) {
     newCols.push({
       id: TENUES_TYPES_COL_ID,
-      name: 'Tenues Types',
+      name: 'bq-cloth - tenues types',
       description: 'Associations favorites de vêtements',
       createdAt: Date.now() + 30,
       primaryFieldKey: 'nom',
@@ -93,10 +94,192 @@ export async function initializeCollections() {
     });
   }
 
+  if (!colIds.includes(CONTEXTS_COL_ID)) {
+    newCols.push({
+      id: CONTEXTS_COL_ID,
+      name: 'bq-cloth - contextes',
+      description: 'Contextes d\'usage personnalisés pour les tenues',
+      createdAt: Date.now() + 40,
+      primaryFieldKey: 'nom',
+      fields: [
+        { id: 'f-ctxnom', name: 'Nom du contexte', key: 'nom', type: 'text' as FieldType, required: true }
+      ]
+    });
+  }
+
   if (newCols.length > 0) {
     await db.collections.bulkAdd(newCols);
     console.log(`${newCols.length} collections initialisées.`);
   }
+}
+
+/**
+ * Check if the cloth database is empty of any user records.
+ */
+export async function isClothDatabaseEmpty(): Promise<boolean> {
+  const count = await db.records.where('collectionId').anyOf([
+    CLOTHES_COL_ID,
+    TENUES_COL_ID,
+    LESSIVES_COL_ID,
+    TENUES_TYPES_COL_ID,
+    CONTEXTS_COL_ID
+  ]).count();
+  return count === 0;
+}
+
+/**
+ * Generate a complete, coherent, small-scale demo dataset.
+ */
+export async function generateDemoData() {
+  const colIds = [CLOTHES_COL_ID, TENUES_COL_ID, LESSIVES_COL_ID, TENUES_TYPES_COL_ID, CONTEXTS_COL_ID];
+  // Clear any existing records first
+  await db.records.where('collectionId').anyOf(colIds).delete();
+
+  const now = Date.now();
+
+  // 1. Create Contexts
+  const contextNames = ["Bureau", "Sport", "Sortie", "Détente"];
+  const contextRecords: RecordEntry[] = contextNames.map((name, idx) => ({
+    id: `rec-${generateId()}`,
+    collectionId: CONTEXTS_COL_ID,
+    data: { nom: name },
+    createdAt: now + idx * 10,
+    updatedAt: now + idx * 10
+  }));
+  await db.records.bulkAdd(contextRecords);
+
+  // 2. Create Clothes
+  const clothesData = [
+    { key: 'tshirt_blanc', nom: 'T-shirt Blanc Coton', categorie: 'T-shirt', couleur: 'Blanc', marque: 'Uniqlo', taille: 'M', matiere: 'Coton', is_available: true, saison: ['Été', 'Mi-saison'] },
+    { key: 'chemise_bleue', nom: 'Chemise Bleue Ciel', categorie: 'Chemise', couleur: 'Bleu ciel', marque: 'Charles Tyrwhitt', taille: '39', matiere: 'Coton', is_available: true, saison: ['Mi-saison', 'Hiver'] },
+    { key: 'pull_gris', nom: 'Pull Mérinos Gris', categorie: 'Pull', couleur: 'Gris', marque: 'Asphalte', taille: 'M', matiere: 'Laine', is_available: true, saison: ['Mi-saison', 'Hiver'] },
+    { key: 'chino_beige', nom: 'Chino Beige', categorie: 'Chino', couleur: 'Beige', marque: 'Loom', taille: '31', matiere: 'Coton', is_available: true, saison: ['Été', 'Mi-saison', 'Hiver'] },
+    { key: 'jean_brut', nom: 'Jean Brut', categorie: 'Jean', couleur: 'Bleu brut', marque: 'Nudie Jeans', taille: '32', matiere: 'Denim', is_available: true, saison: ['Mi-saison', 'Hiver'] },
+    { key: 'sneakers_blanches', nom: 'Sneakers Blanches', categorie: 'Chaussures', couleur: 'Blanc', marque: 'Veja', taille: '42', matiere: 'Cuir', is_available: true, saison: ['Été', 'Mi-saison'] },
+    { key: 'veste_denim', nom: 'Veste Denim', categorie: 'Veste', couleur: 'Bleu', marque: 'Levi\'s', taille: 'M', matiere: 'Coton', is_available: true, saison: ['Mi-saison'] }
+  ];
+
+  const clothesRecordsMap: Record<string, string> = {};
+  const clothesRecords: RecordEntry[] = clothesData.map((c, idx) => {
+    const id = `rec-${generateId()}`;
+    clothesRecordsMap[c.key] = id;
+    return {
+      id,
+      collectionId: CLOTHES_COL_ID,
+      data: {
+        nom: c.nom,
+        categorie: c.categorie,
+        couleur: c.couleur,
+        marque: c.marque,
+        taille: c.taille,
+        matiere: c.matiere,
+        is_available: c.is_available,
+        saison: c.saison
+      },
+      createdAt: now + idx * 10 + 100,
+      updatedAt: now + idx * 10 + 100
+    };
+  });
+  await db.records.bulkAdd(clothesRecords);
+
+  // 3. Create Tenues Types
+  const tenuesTypesData = [
+    {
+      nom: 'Tenue Bureau Chic',
+      contexte: 'Bureau',
+      temperature_ideale: 20,
+      vetements: ['chemise_bleue', 'chino_beige', 'sneakers_blanches']
+    },
+    {
+      nom: 'Détente Week-end',
+      contexte: 'Sortie',
+      temperature_ideale: 22,
+      vetements: ['tshirt_blanc', 'jean_brut', 'sneakers_blanches']
+    },
+    {
+      nom: 'Look Hiver',
+      contexte: 'Sortie',
+      temperature_ideale: 12,
+      vetements: ['pull_gris', 'jean_brut', 'veste_denim', 'sneakers_blanches']
+    }
+  ];
+
+  const tenuesTypesRecords: RecordEntry[] = tenuesTypesData.map((tt, idx) => ({
+    id: `rec-${generateId()}`,
+    collectionId: TENUES_TYPES_COL_ID,
+    data: {
+      nom: tt.nom,
+      contexte: tt.contexte,
+      temperature_ideale: tt.temperature_ideale,
+      vetements_associes: tt.vetements.map(k => clothesRecordsMap[k])
+    },
+    createdAt: now + idx * 10 + 200,
+    updatedAt: now + idx * 10 + 200
+  }));
+  await db.records.bulkAdd(tenuesTypesRecords);
+
+  // 4. Create past Tenues worn (one 3 days ago, one yesterday)
+  const formatOffsetDate = (daysAgo: number): string => {
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    return d.toISOString().split('T')[0];
+  };
+
+  const tenuesData = [
+    {
+      date: formatOffsetDate(3),
+      contexte: 'Bureau',
+      vetements: ['chemise_bleue', 'chino_beige', 'sneakers_blanches'],
+      entourage_croise: ['Collègues']
+    },
+    {
+      date: formatOffsetDate(1),
+      contexte: 'Sortie',
+      vetements: ['tshirt_blanc', 'jean_brut', 'sneakers_blanches'],
+      entourage_croise: ['Amis']
+    }
+  ];
+
+  const tenuesRecords: RecordEntry[] = tenuesData.map((t, idx) => ({
+    id: `rec-${generateId()}`,
+    collectionId: TENUES_COL_ID,
+    data: {
+      date: t.date,
+      contexte: t.contexte,
+      vetements_portes: t.vetements.map(k => clothesRecordsMap[k]),
+      entourage_croise: t.entourage_croise
+    },
+    createdAt: now + idx * 10 + 300,
+    updatedAt: now + idx * 10 + 300
+  }));
+  await db.records.bulkAdd(tenuesRecords);
+
+  // 5. Create past Lessives (2 days ago)
+  const lessivesRecords: RecordEntry[] = [
+    {
+      id: `rec-${generateId()}`,
+      collectionId: LESSIVES_COL_ID,
+      data: {
+        date: formatOffsetDate(2),
+        vetements_laves: [clothesRecordsMap['tshirt_blanc'], clothesRecordsMap['chino_beige']]
+      },
+      createdAt: now + 400,
+      updatedAt: now + 400
+    }
+  ];
+  await db.records.bulkAdd(lessivesRecords);
+}
+
+/**
+ * Fetch all custom contexts records
+ */
+export async function getContextsRecords(): Promise<RecordEntry[]> {
+  const recs = await db.records.where('collectionId').equals(CONTEXTS_COL_ID).toArray();
+  return recs.filter(r => !r.deletedAt).sort((a, b) => {
+    const valA = String(a.data.nom || '').trim();
+    const valB = String(b.data.nom || '').trim();
+    return valA.localeCompare(valB, 'fr', { sensitivity: 'base' });
+  });
 }
 
 /**

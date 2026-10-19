@@ -5,7 +5,7 @@ import {
   getPartiesRecords, 
   formatToFrenchDate 
 } from '../db/queries';
-import { Award, ShieldAlert, ChevronDown, ChevronUp, Trash2 } from '@lucide/vue';
+import { Award, ShieldAlert, ChevronDown, ChevronUp, Trash2, Crown } from '@lucide/vue';
 
 const parties = ref<RecordEntry[]>([]);
 const isLoading = ref(true);
@@ -41,7 +41,6 @@ const parseJson = (str: string, fallback: any = {}) => {
 };
 
 const handleDeleteParty = async (id: string) => {
-  if (!confirm('Supprimer cette partie de l\'historique ?')) return;
   try {
     await db.records.update(id, {
       deletedAt: Date.now(),
@@ -58,8 +57,8 @@ const handleDeleteParty = async (id: string) => {
   <div class="historique-view">
     <div class="view-header">
       <div>
-        <h2>📊 Historique des Parties</h2>
-        <p class="text-secondary">Passe en revue tes anciennes sessions de jeu, consulte les scores finaux et déplie les manches détaillées de chaque partie.</p>
+        <h2>Historique des parties</h2>
+        <p class="text-sub">Passe en revue tes anciennes sessions de jeu, consulte les scores finaux et déplie les manches détaillées de chaque partie.</p>
       </div>
     </div>
 
@@ -84,11 +83,11 @@ const handleDeleteParty = async (id: string) => {
           <div class="party-item-header flex-row justify-between flex-wrap gap-2">
             <div class="flex-row gap-3">
               <span class="winner-crown-wrapper flex-row">
-                👑
+                <Crown :size="16" class="text-warning" />
               </span>
               <div>
                 <h4 class="party-game-name font-black text-sm">{{ p.data.jeu }}</h4>
-                <p class="party-date text-xs text-secondary mt-0.5">Le {{ formatToFrenchDate(p.data.date) }}</p>
+                <p class="party-date text-xs text-sub mt-0.5">Le {{ formatToFrenchDate(p.data.date) }}</p>
               </div>
             </div>
 
@@ -97,7 +96,7 @@ const handleDeleteParty = async (id: string) => {
                 <Award :size="12" /> Vainqueur : {{ p.data.vainqueur }}
               </span>
               
-              <button @click="toggleUnfold(p.id!)" class="icon-btn-toggle" :title="unfoldedSessions[p.id!] ? 'Replier' : 'Déplier'">
+              <button @click="toggleUnfold(p.id!)" class="action-btn" :title="unfoldedSessions[p.id!] ? 'Replier' : 'Déplier'">
                 <ChevronUp v-if="unfoldedSessions[p.id!]" :size="16" />
                 <ChevronDown v-else :size="16" />
               </button>
@@ -110,16 +109,16 @@ const handleDeleteParty = async (id: string) => {
             <span 
               v-for="(score, player) in parseJson(p.data.scores_finaux)" 
               :key="player"
-              class="mini-score-pill"
-              :class="{ 'winner-pill': player === p.data.vainqueur }"
+              class="badge"
+              :class="player === p.data.vainqueur ? 'badge-primary' : 'badge-neutral'"
             >
-              {{ player }} : <strong>{{ score }}</strong>
+              {{ player }} : <strong class="ml-1">{{ score }}</strong>
             </span>
           </div>
 
           <!-- Unfolded ledger of rounds (MANCHES DETAILS) -->
           <div class="unfolded-ledger-drawer mt-4 border-top pt-3" v-if="unfoldedSessions[p.id!]">
-            <h5 class="font-bold text-xs uppercase text-secondary mb-3 flex-row justify-between">
+            <h5 class="font-bold text-xs uppercase text-sub mb-3 flex-row justify-between">
               <span>Détail manches par manches</span>
               <button @click="handleDeleteParty(p.id!)" class="delete-btn-link text-xs flex-row text-danger-icon"><Trash2 :size="12" /> Supprimer la partie</button>
             </h5>
@@ -169,43 +168,12 @@ const handleDeleteParty = async (id: string) => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background-color: rgba(245, 158, 11, 0.1);
+  background-color: color-mix(in srgb, var(--color-warning) 10%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.15rem;
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.15);
-}
-
-.icon-btn-toggle {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: var(--radius-sm);
-  transition: var(--transition);
-  
-  &:hover {
-    color: var(--text-primary);
-    background-color: var(--border-hover);
-  }
-}
-
-.mini-score-pill {
-  font-size: 0.75rem;
-  background-color: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-color);
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  
-  &.winner-pill {
-    background-color: rgba(139, 92, 246, 0.08);
-    border-color: rgba(139, 92, 246, 0.2);
-    color: #a78bfa;
-    font-weight: 700;
-  }
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-warning) 15%, transparent);
 }
 
 .delete-btn-link {
@@ -239,11 +207,11 @@ const handleDeleteParty = async (id: string) => {
 }
 
 .text-primary-winner {
-  color: #a78bfa !important;
+  color: var(--color-primary) !important;
 }
 
 .bg-row-total {
-  background-color: rgba(255, 255, 255, 0.01);
+  background-color: color-mix(in srgb, var(--color-white) 1%, transparent);
   border-bottom: none !important;
 }
 

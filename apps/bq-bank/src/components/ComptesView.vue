@@ -6,7 +6,7 @@ import {
   getFinancesRecords, 
   calculateAccountBalances 
 } from '../db/queries';
-import { Landmark, ShieldAlert } from '@lucide/vue';
+import { ShieldAlert, CreditCard, PiggyBank, TrendingUp } from '@lucide/vue';
 
 const comptes = ref<RecordEntry[]>([]);
 const finances = ref<RecordEntry[]>([]);
@@ -33,9 +33,30 @@ const realBalances = computed(() => {
   return calculateAccountBalances(comptes.value, finances.value);
 });
 
-// Filter active accounts
+// Filter and sort active accounts (Classique -> Épargne -> Investissement, then alphabetically by name)
 const activeComptes = computed(() => {
-  return comptes.value.filter(c => c.data.is_active !== false);
+  const getTypePriority = (type?: string) => {
+    const t = type || 'Classique';
+    if (t === 'Classique') return 1;
+    if (t === 'Épargne') return 2;
+    if (t === 'Investissement') return 3;
+    return 4;
+  };
+
+  return [...comptes.value]
+    .filter(c => c.data.is_active !== false)
+    .sort((a, b) => {
+      const priorityA = getTypePriority(a.data.type);
+      const priorityB = getTypePriority(b.data.type);
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      const nameA = a.data.nom || '';
+      const nameB = b.data.nom || '';
+      return nameA.localeCompare(nameB, 'fr');
+    });
 });
 
 // Sum of all active account balances
@@ -46,14 +67,44 @@ const totalPatrimoine = computed(() => {
   });
   return sum;
 });
+
+// Sum of balances by account type
+const patrimoineParType = computed(() => {
+  const totals: Record<string, number> = {
+    'Classique': 0,
+    'Épargne': 0,
+    'Investissement': 0
+  };
+  
+  const activeTypes = new Set<string>();
+  
+  activeComptes.value.forEach(acc => {
+    const type = acc.data.type || 'Classique';
+    activeTypes.add(type);
+    const balance = realBalances.value[acc.data.nom] || 0;
+    if (totals[type] !== undefined) {
+      totals[type] += balance;
+    } else {
+      totals[type] = balance;
+    }
+  });
+  
+  const order = ['Classique', 'Épargne', 'Investissement'];
+  return order
+    .filter(type => activeTypes.has(type))
+    .map(type => ({
+      type,
+      total: totals[type]
+    }));
+});
 </script>
 
 <template>
   <div class="comptes-view">
     <div class="view-header">
       <div>
-        <h2>🏦 Mes Comptes & Soldes</h2>
-        <p class="text-secondary">Consulte les soldes réels de tes différents comptes bancaires calculés en temps réel d'après ton historique.</p>
+        <h2>Soldes</h2>
+        <p class="text-sub">Consulte les soldes réels de tes différents comptes bancaires calculés en temps réel d'après ton historique.</p>
       </div>
     </div>
 
@@ -64,17 +115,30 @@ const totalPatrimoine = computed(() => {
     <div v-else-if="activeComptes.length === 0" class="card glass text-center py-4 text-muted">
       <ShieldAlert class="mx-auto mb-2 text-warning" :size="36" />
       <h3>Aucun compte bancaire actif</h3>
-      <p class="text-secondary text-sm mt-2">Configure et active tes comptes bancaires dans l'onglet **Garage/Options** pour voir les soldes.</p>
+      <p class="text-sub text-sm mt-2">Configure et active tes comptes bancaires dans l'onglet <strong>Paramètres</strong> pour voir les soldes.</p>
     </div>
 
     <div v-else class="comptes-dashboard-layout">
       <!-- Total Patrimoine Card -->
       <div class="card glass total-patrimoine-card mb-4 text-center">
-        <span class="lbl font-bold text-xs text-muted block uppercase mb-1">Patrimoine Financier Global</span>
-        <h3 class="patrimoine-val font-black text-2xl" :class="totalPatrimoine >= 0 ? 'text-success' : 'text-danger'">
+        <span class="lbl font-bold text-xs text-muted block uppercase mb-1">Patrimoine financier global</span>
+        <div class="patrimoine-val font-black text-2xl" :class="totalPatrimoine >= 0 ? 'text-success' : 'text-danger'">
           {{ totalPatrimoine.toLocaleString('fr', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} €
-        </h3>
-        <p class="text-secondary text-xs mt-2">Somme des soldes de tes {{ activeComptes.length }} comptes actifs.</p>
+        </div>
+
+        <!-- Détail par type de compte -->
+        <div v-if="patrimoineParType.length > 0" class="patrimoine-breakdown">
+          <div 
+            v-for="item in patrimoineParType" 
+            :key="item.type" 
+            class="flex-col text-xs"
+          >
+            <span class="font-bold" :class="item.type">{{ item.type }} :</span>
+            <span class="font-black text-sm" :class="totalPatrimoine >= 0 ? 'text-success' : 'text-danger'">
+              {{ item.total.toLocaleString('fr', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} €
+            </span>
+          </div>
+        </div>
       </div>
 
       <!-- Accounts Grid -->
@@ -83,10 +147,13 @@ const totalPatrimoine = computed(() => {
           v-for="acc in activeComptes" 
           :key="acc.id" 
           class="card glass hoverable compte-card"
+          :class="acc.data.type || 'Classique'"
         >
           <div class="compte-header flex-row">
-            <div class="icon-wrapper">
-              <Landmark :size="18" />
+            <div class="icon-wrapper" :class="acc.data.type">
+              <PiggyBank v-if="acc.data.type === 'Épargne'" :size="18" />
+              <TrendingUp v-else-if="acc.data.type === 'Investissement'" :size="18" />
+              <CreditCard v-else :size="18" />
             </div>
             <h4 class="compte-title font-bold text-md">{{ acc.data.nom }}</h4>
           </div>
@@ -98,9 +165,10 @@ const totalPatrimoine = computed(() => {
             </span>
           </div>
 
-          <div class="compte-footer border-top pt-2 mt-4 text-xs text-secondary flex-row justify-between">
-            <span>Solde initial : {{ Number(acc.data.solde_initial).toFixed(2) }} €</span>
-            <span class="badge badge-success text-xs">Actif</span>
+          <div class="compte-footer border-top pt-2 mt-4 text-xs text-sub flex-row justify-end">
+            <span class="badge text-xs" :class="acc.data.type === 'Épargne' ? 'badge-yellow' : acc.data.type === 'Investissement' ? 'badge-purple' : 'badge-primary'">
+              {{ acc.data.type || 'Classique' }}
+            </span>
           </div>
         </div>
       </div>
@@ -110,14 +178,24 @@ const totalPatrimoine = computed(() => {
 
 <style scoped lang="scss">
 .comptes-dashboard-layout {
-  max-width: 800px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
 .total-patrimoine-card {
-  border-color: rgba(16, 185, 129, 0.2);
-  background-color: rgba(16, 185, 129, 0.02);
+  border-color: color-mix(in srgb, var(--color-success) 20%, transparent);
+  background-color: color-mix(in srgb, var(--color-success) 2%, transparent);
   padding: 1.5rem;
+
+  .patrimoine-breakdown {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+  }
 }
 
 .patrimoine-val {
@@ -134,6 +212,33 @@ const totalPatrimoine = computed(() => {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  border-width: 1px;
+  border-style: solid;
+  transition: var(--transition);
+
+  &.Classique {
+    border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+    &:hover {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 16px color-mix(in srgb, var(--color-primary) 20%, transparent);
+    }
+  }
+
+  &.Épargne {
+    border-color: color-mix(in srgb, var(--color-yellow) 35%, transparent);
+    &:hover {
+      border-color: var(--color-yellow);
+      box-shadow: 0 0 16px color-mix(in srgb, var(--color-yellow) 20%, transparent);
+    }
+  }
+
+  &.Investissement {
+    border-color: color-mix(in srgb, var(--color-purple) 35%, transparent);
+    &:hover {
+      border-color: var(--color-purple);
+      box-shadow: 0 0 16px color-mix(in srgb, var(--color-purple) 20%, transparent);
+    }
+  }
 }
 
 .compte-header {
@@ -147,8 +252,16 @@ const totalPatrimoine = computed(() => {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-sm);
-  background-color: rgba(16, 185, 129, 0.1);
-  color: var(--color-primary);
+  
+  &.Classique {
+    background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  }
+  &.Épargne {
+    background-color: color-mix(in srgb, var(--color-yellow) 10%, transparent);
+  }
+  &.Investissement {
+    background-color: color-mix(in srgb, var(--color-purple) 10%, transparent);
+  }
 }
 
 .border-top {
@@ -159,8 +272,8 @@ const totalPatrimoine = computed(() => {
   padding-top: 0.5rem;
 }
 
-.text-success { color: #34d399 !important; }
-.text-danger { color: #f87171 !important; }
+.text-success { color: var(--color-success) !important; }
+.text-danger { color: var(--color-danger) !important; }
 
 .text-xs { font-size: 0.75rem; }
 .text-sm { font-size: 0.85rem; }

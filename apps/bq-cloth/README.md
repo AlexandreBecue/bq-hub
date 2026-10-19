@@ -49,11 +49,11 @@ L'application utilise une base IndexedDB locale hors-ligne (`BQClothDatabase`) e
    * `vetements_portes` (relation multiple vers `col-41w5uphny`)
    * `contexte` (text: Bureau, Télétravail, Sport, Escalade, Sortie, Détente)
 
-3. **`Lessives` (ID : `col-lessives`)**
+3. **`Lessives` (ID : `col-r9x5p3w2t`)**
    * `date` (date, required)
    * `vetements_laves` (relation multiple vers `col-41w5uphny`)
 
-4. **`Tenues Types` (ID : `col-tenues-types`)**
+4. **`Tenues Types` (ID : `col-m2p7t4w8k`)**
    * `nom` (text, required)
    * `vetements_associes` (relation multiple vers `col-41w5uphny`)
    * `contexte` (text)

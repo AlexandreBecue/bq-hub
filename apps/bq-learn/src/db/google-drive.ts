@@ -2,7 +2,7 @@ import { BQDriveSync } from '@bq/db-sync';
 import { db } from './index';
 
 // Instantiate the shared sync engine with BQLearn's database and backup file name
-const syncEngine = new BQDriveSync(db, 'bq-metrics-sync.json');
+export const syncEngine = new BQDriveSync(db, 'bq-hub-sync.json');
 
 // Re-export reactive states for UI components
 export const isDriveConnected = syncEngine.isDriveConnected;

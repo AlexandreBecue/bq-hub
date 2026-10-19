@@ -1,61 +1,69 @@
 <script setup lang="ts">
-  import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue';
 
-  const isLocked = ref(false)
-  const shouldBeLocked = ref(false)
-  let wakeLock: WakeLockSentinel | null = null
+const isLocked = ref(false);
+const shouldBeLocked = ref(false);
+let wakeLock: any = null;
 
-  async function requestWakeLock() {
-    shouldBeLocked.value = true
-    if (isLocked.value) return
+async function requestWakeLock() {
+  shouldBeLocked.value = true;
+  if (isLocked.value) return;
 
-    try {
-      wakeLock = await navigator.wakeLock.request('screen')
-      isLocked.value = true
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await (navigator as any).wakeLock.request('screen');
+      isLocked.value = true;
 
       wakeLock.addEventListener('release', () => {
-        isLocked.value = false
-      })
-    } catch (err) {
-      console.error('WakeLock error:', err)
+        isLocked.value = false;
+      });
     }
+  } catch (err) {
+    console.warn('WakeLock non disponible ou refusé:', err);
   }
+}
 
-  function releaseWakeLock() {
-    shouldBeLocked.value = false
-    if (wakeLock) {
-      wakeLock.release()
-      wakeLock = null
-      isLocked.value = false
-    }
+function releaseWakeLock() {
+  shouldBeLocked.value = false;
+  if (wakeLock) {
+    wakeLock.release().catch(() => {});
+    wakeLock = null;
+    isLocked.value = false;
   }
+}
 
-  async function handleVisibilityChange() {
-    if (document.visibilityState === 'visible' && shouldBeLocked.value) {
-      try {
-        wakeLock = await navigator.wakeLock.request('screen')
-        isLocked.value = true
+async function handleVisibilityChange() {
+  if (document.visibilityState === 'visible' && shouldBeLocked.value) {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await (navigator as any).wakeLock.request('screen');
+        isLocked.value = true;
         wakeLock.addEventListener('release', () => {
-          isLocked.value = false
-        })
-      } catch (err) {
-        console.error('WakeLock re-acquisition error:', err)
+          isLocked.value = false;
+        });
       }
+    } catch (err) {
+      console.warn('WakeLock ré-acquisition échouée:', err);
     }
   }
+}
 
-  onMounted(() => {
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-  })
+onMounted(() => {
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+});
 
-  onUnmounted(() => {
-    document.removeEventListener('visibilitychange', handleVisibilityChange)
-    releaseWakeLock()
-  })
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
+  releaseWakeLock();
+});
 
-  defineExpose({
-    requestWakeLock,
-    releaseWakeLock,
-    isLocked
-  })
+defineExpose({
+  requestWakeLock,
+  releaseWakeLock,
+  isLocked
+});
 </script>
+
+<template>
+  <!-- Non-visual helper component -->
+</template>

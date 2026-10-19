@@ -1,10 +1,82 @@
-import { db, type RecordEntry } from './index';
+import { db, type RecordEntry, type CollectionSchema } from './index';
 
 // Dedicated Collection IDs
 export const STOCK_COL_ID = 'col-ixd02dr3f';
 export const RECIPES_COL_ID = 'col-19qpwiufk';
 export const PLANNING_COL_ID = 'col-ba3rfr5qk';
 export const ACHATS_COL_ID = 'col-e8jz89jel';
+export const SUGGESTIONS_COL_ID = 'col-9w4b1v8zp';
+
+/**
+ * Initializes collections for bq-cook with standardized names.
+ */
+export async function initializeCollections() {
+  const collectionsToEnsure: CollectionSchema[] = [
+    {
+      id: STOCK_COL_ID,
+      name: 'bq-cook - stocks & ingrédients',
+      description: 'Inventaire du garde-manger et gestion des stocks',
+      primaryFieldKey: 'nom',
+      createdAt: Date.now(),
+      fields: [
+        { id: 'fld-stknom', name: 'Nom', key: 'nom', type: 'text', required: true },
+        { id: 'fld-stkcat', name: 'Catégorie', key: 'categorie', type: 'select', required: false },
+        { id: 'fld-stkunit', name: 'Unité', key: 'unite', type: 'text', required: false },
+        { id: 'fld-stkqty', name: 'Quantité', key: 'quantite', type: 'number', required: false },
+        { id: 'fld-stkseuil', name: 'Seuil d\'alerte', key: 'seuil_d_alerte', type: 'number', required: false }
+      ]
+    },
+    {
+      id: RECIPES_COL_ID,
+      name: 'bq-cook - recettes',
+      description: 'Fiches recettes et ingrédients requis',
+      primaryFieldKey: 'nom',
+      createdAt: Date.now(),
+      fields: [
+        { id: 'fld-rcpnom', name: 'Nom', key: 'nom', type: 'text', required: true },
+        { id: 'fld-rcping', name: 'Ingrédients', key: 'ingredients', type: 'relation', required: false, relatedCollectionId: STOCK_COL_ID, isMultiple: true },
+        { id: 'fld-rcpprep', name: 'Temps de préparation', key: 'temps_de_preparation', type: 'number', required: false, unit: 'min' },
+        { id: 'fld-rcpcook', name: 'Temps de cuisson', key: 'temps_de_cuisson', type: 'number', required: false, unit: 'min' }
+      ]
+    },
+    {
+      id: PLANNING_COL_ID,
+      name: 'bq-cook - planning repas',
+      description: 'Planning hebdomadaire des repas',
+      primaryFieldKey: 'date',
+      createdAt: Date.now(),
+      fields: [
+        { id: 'fld-plndate', name: 'Date', key: 'date', type: 'date', required: true },
+        { id: 'fld-plnmom', name: 'Moment', key: 'moment', type: 'select', required: false, options: ['Midi', 'Soir', 'Autre'] },
+        { id: 'fld-plnrec', name: 'Repas', key: 'repas', type: 'relation', required: false, relatedCollectionId: RECIPES_COL_ID },
+        { id: 'fld-plning', name: 'Ingrédients consommés', key: 'ingredients_consommes', type: 'relation', required: false, relatedCollectionId: STOCK_COL_ID, isMultiple: true },
+        { id: 'fld-plnstat', name: 'Statut', key: 'statut', type: 'select', required: false, options: ['Prévu', 'Préparé', 'Consommé'] }
+      ]
+    },
+    {
+      id: ACHATS_COL_ID,
+      name: 'bq-cook - achats courses',
+      description: 'Historique des articles achetés et tickets de caisse',
+      primaryFieldKey: 'date',
+      createdAt: Date.now(),
+      fields: [
+        { id: 'fld-achdate', name: 'Date', key: 'date', type: 'date', required: true },
+        { id: 'fld-achart', name: 'Article', key: 'article', type: 'text', required: true },
+        { id: 'fld-achgen', name: 'Produit générique', key: 'produit_generique', type: 'text', required: false },
+        { id: 'fld-achqty', name: 'Quantité', key: 'quantite', type: 'number', required: false },
+        { id: 'fld-achprix', name: 'Prix', key: 'prix', type: 'number', required: false, unit: '€' },
+        { id: 'fld-achtot', name: 'Prix total', key: 'prix_total', type: 'number', required: false, unit: '€' }
+      ]
+    }
+  ];
+
+  for (const col of collectionsToEnsure) {
+    const existing = await db.collections.get(col.id);
+    if (!existing) {
+      await db.collections.put(col);
+    }
+  }
+}
 
 /**
  * Format a YYYY-MM-DD date into DD/MM/YYYY French format
@@ -132,4 +204,46 @@ export async function runStockAutomations(record: RecordEntry, isNew: boolean) {
   } catch (err) {
     console.error('Erreur lors de l\'exécution des automatisations de stock:', err);
   }
+}
+
+export async function generateDemoData() {
+  const stockCount = await db.records.where('collectionId').equals(STOCK_COL_ID).count();
+  if (stockCount > 0) return;
+
+  const stocks = [
+    { id: 'rec-stock-pates', collectionId: STOCK_COL_ID, data: { nom: 'Pâtes', quantite: 500, unite: 'g' }, createdAt: Date.now(), updatedAt: Date.now() },
+    { id: 'rec-stock-lait', collectionId: STOCK_COL_ID, data: { nom: 'Lait', quantite: 3, unite: 'L' }, createdAt: Date.now() + 1, updatedAt: Date.now() + 1 },
+    { id: 'rec-stock-oeufs', collectionId: STOCK_COL_ID, data: { nom: 'Œufs', quantite: 6, unite: 'pces' }, createdAt: Date.now() + 2, updatedAt: Date.now() + 2 }
+  ];
+  await db.records.bulkAdd(stocks);
+
+  const recipes = [
+    {
+      id: 'rec-recipe-crepes',
+      collectionId: RECIPES_COL_ID,
+      data: {
+        nom: 'Crêpes simples',
+        temps_prepa: 10,
+        temps_cuisson: 15,
+        ingredients: 'Farine (250g), Œufs (4), Lait (500ml), Beurre (50g)',
+        instructions: '1. Mélanger la farine et les œufs.\n2. Ajouter le lait progressivement.\n3. Cuire dans une poêle chaude.'
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    },
+    {
+      id: 'rec-recipe-pates',
+      collectionId: RECIPES_COL_ID,
+      data: {
+        nom: 'Pâtes au Beurre',
+        temps_prepa: 5,
+        temps_cuisson: 10,
+        ingredients: 'Pâtes (200g), Beurre (20g), Sel',
+        instructions: '1. Faire bouillir de l\'eau salée.\n2. Cuire les pâtes 9 minutes.\n3. Égoutter et ajouter le beurre.'
+      },
+      createdAt: Date.now() + 1,
+      updatedAt: Date.now() + 1
+    }
+  ];
+  await db.records.bulkAdd(recipes);
 }

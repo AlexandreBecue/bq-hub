@@ -34,7 +34,7 @@ export async function initializeCollections() {
   if (!colIds.includes(LUDOTHEQUE_COL_ID)) {
     newCols.push({
       id: LUDOTHEQUE_COL_ID,
-      name: 'Ludothèque',
+      name: 'bq-play - ludothèque',
       description: 'Ma collection de jeux de société et jeux vidéo unifiée',
       createdAt: Date.now(),
       primaryFieldKey: 'nom',
@@ -55,7 +55,7 @@ export async function initializeCollections() {
   if (!colIds.includes(PARTIES_COL_ID)) {
     newCols.push({
       id: PARTIES_COL_ID,
-      name: 'Sessions de Jeu',
+      name: 'bq-play - parties',
       description: 'Historique des parties jouées et scores par manches',
       createdAt: Date.now() + 10,
       primaryFieldKey: 'date',
@@ -85,8 +85,8 @@ export async function initializeCollections() {
  */
 export async function performGamesMigration() {
   try {
-    const unifiedCount = await db.records.where('collectionId').equals(LUDOTHEQUE_COL_ID).count();
-    if (unifiedCount > 0) return; // Already migrated/populated
+    const existingGames = await db.records.where('collectionId').equals(LUDOTHEQUE_COL_ID).toArray();
+    const existingNames = new Set(existingGames.filter(g => !g.deletedAt).map(g => String(g.data.nom || '').toLowerCase().trim()));
 
     const legacyVideoGames = await db.records.where('collectionId').equals(LEGACY_VIDEOGAMES_COL_ID).toArray();
     const legacyBoardGames1 = await db.records.where('collectionId').equals(LEGACY_BOARDGAMES_COL_ID).toArray();
@@ -98,11 +98,14 @@ export async function performGamesMigration() {
     // Migrate videogames
     legacyVideoGames.forEach(g => {
       if (g.deletedAt) return;
+      const name = String(g.data.nom || g.data.title || '').trim();
+      if (!name || existingNames.has(name.toLowerCase())) return;
+      existingNames.add(name.toLowerCase());
       mergedRecords.push({
         id: `rec-${Math.random().toString(36).substring(2, 11)}`,
         collectionId: LUDOTHEQUE_COL_ID,
         data: {
-          nom: g.data.nom || g.data.title || 'Jeu vidéo inconnu',
+          nom: name,
           type_jeu: 'Jeux vidéo',
           min_players: 1,
           max_players: 4,
@@ -117,39 +120,17 @@ export async function performGamesMigration() {
       idx++;
     });
 
-    // Migrate boardgames (source 1)
-    legacyBoardGames1.forEach(g => {
+    // Migrate boardgames (source 1 & 2)
+    [...legacyBoardGames1, ...legacyBoardGames2].forEach(g => {
       if (g.deletedAt) return;
+      const name = String(g.data.nom || g.data.title || '').trim();
+      if (!name || existingNames.has(name.toLowerCase())) return;
+      existingNames.add(name.toLowerCase());
       mergedRecords.push({
         id: `rec-${Math.random().toString(36).substring(2, 11)}`,
         collectionId: LUDOTHEQUE_COL_ID,
         data: {
-          nom: g.data.nom || g.data.title || 'Jeu de société inconnu',
-          type_jeu: 'Jeux de société',
-          min_players: Number(g.data.joueurs_min) || Number(g.data.min_players) || 2,
-          max_players: Number(g.data.joueurs_max) || Number(g.data.max_players) || 4,
-          playtime: Number(g.data.duree) || Number(g.data.playtime) || null,
-          progression: null,
-          plateforme: null,
-          possede: g.data.possede !== false
-        },
-        createdAt: Date.now() + idx * 10,
-        updatedAt: Date.now() + idx * 10
-      });
-      idx++;
-    });
-
-    // Migrate boardgames (source 2)
-    legacyBoardGames2.forEach(g => {
-      if (g.deletedAt) return;
-      // Prevent duplicate if already migrated
-      if (mergedRecords.some(mr => mr.data.nom.toLowerCase() === String(g.data.nom || g.data.title || '').toLowerCase())) return;
-
-      mergedRecords.push({
-        id: `rec-${Math.random().toString(36).substring(2, 11)}`,
-        collectionId: LUDOTHEQUE_COL_ID,
-        data: {
-          nom: g.data.nom || g.data.title || 'Jeu de société inconnu',
+          nom: name,
           type_jeu: 'Jeux de société',
           min_players: Number(g.data.joueurs_min) || Number(g.data.min_players) || 2,
           max_players: Number(g.data.joueurs_max) || Number(g.data.max_players) || 4,
@@ -166,32 +147,35 @@ export async function performGamesMigration() {
 
     if (mergedRecords.length > 0) {
       await db.records.bulkAdd(mergedRecords);
-      console.log(`Auto-migration: ${mergedRecords.length} jeux importés dans la Ludothèque.`);
-    } else {
-      // Seed default games if database is completely empty
-      const defaultGames: RecordEntry[] = [
-        {
-          id: `rec-${Math.random().toString(36).substring(2, 11)}`,
-          collectionId: LUDOTHEQUE_COL_ID,
-          data: { nom: 'Zelda: Breath of the Wild', type_jeu: 'Jeux vidéo', min_players: 1, max_players: 1, playtime: null, progression: 'En cours', plateforme: 'Nintendo Switch', possede: true },
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        },
-        {
-          id: `rec-${Math.random().toString(36).substring(2, 11)}`,
-          collectionId: LUDOTHEQUE_COL_ID,
-          data: { nom: '7 Wonders', type_jeu: 'Jeux de société', min_players: 2, max_players: 7, playtime: 45, progression: null, plateforme: null, possede: true },
-          createdAt: Date.now() + 10,
-          updatedAt: Date.now() + 10
-        }
-      ];
-      await db.records.bulkAdd(defaultGames);
-      console.log('Ludothèque vide: seeding de jeux par défaut fait.');
+      console.log(`${mergedRecords.length} jeux historiques migrés avec succès dans bq-play - ludothèque.`);
     }
-
   } catch (err) {
-    console.error('Error during games auto-migration:', err);
+    console.error('Erreur migration automatique ludothèque:', err);
   }
+}
+
+export async function generateDemoData() {
+  const unifiedCount = await db.records.where('collectionId').equals(LUDOTHEQUE_COL_ID).count();
+  if (unifiedCount > 0) return;
+
+  const defaultGames: RecordEntry[] = [
+    {
+      id: `rec-${Math.random().toString(36).substring(2, 11)}`,
+      collectionId: LUDOTHEQUE_COL_ID,
+      data: { nom: 'Zelda: Breath of the Wild', type_jeu: 'Jeux vidéo', min_players: 1, max_players: 1, playtime: null, progression: 'En cours', plateforme: 'Nintendo Switch', possede: true },
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    },
+    {
+      id: `rec-${Math.random().toString(36).substring(2, 11)}`,
+      collectionId: LUDOTHEQUE_COL_ID,
+      data: { nom: '7 Wonders', type_jeu: 'Jeux de société', min_players: 2, max_players: 7, playtime: 45, progression: null, plateforme: null, possede: true },
+      createdAt: Date.now() + 10,
+      updatedAt: Date.now() + 10
+    }
+  ];
+  await db.records.bulkAdd(defaultGames);
+  console.log('Ludothèque vide: seeding de jeux par défaut fait.');
 }
 
 /**

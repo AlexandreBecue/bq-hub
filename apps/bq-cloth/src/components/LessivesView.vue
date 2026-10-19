@@ -7,9 +7,11 @@ import {
   getLessivesRecords, 
   formatToFrenchDate 
 } from '../db/queries';
-import { Plus, Calendar, Check, Clock, ShieldAlert, X, Archive } from '@lucide/vue';
+import { Plus, Calendar, Check, Clock, ShieldAlert, X, Archive, Trash2 } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
+const toast = useToast();
 
 const clothes = ref<RecordEntry[]>([]);
 const lessives = ref<RecordEntry[]>([]);
@@ -103,7 +105,7 @@ const handleAddLessive = async () => {
     makeAvailableImmediately.value = false;
     emit('data-updated');
     loadData();
-    alert('Lessive enregistrée !');
+    toast.success('Lessive enregistrée !');
   } catch (err) {
     console.error(err);
   }
@@ -111,7 +113,6 @@ const handleAddLessive = async () => {
 
 // Delete historical Laundry record
 const handleDeleteLessive = async (id: string) => {
-  if (!confirm('Es-tu sûr de vouloir supprimer cet historique de lessive ? (Cela ne modifiera pas la disponibilité des vêtements)')) return;
   try {
     await db.records.update(id, {
       deletedAt: Date.now(),
@@ -129,12 +130,12 @@ const handleDeleteLessive = async (id: string) => {
   <div class="lessives-view">
     <div class="view-header">
       <div>
-        <h2>🧺 Mes Lessives</h2>
-        <p class="text-secondary">Enregistre tes machines au moment d'étendre ton linge pour suivre son cycle de séchage et réinitialiser sa fraîcheur.</p>
+        <h2>Lessives</h2>
+        <p class="text-sub">Enregistre tes machines au moment d'étendre ton linge pour suivre son cycle de séchage et réinitialiser sa fraîcheur.</p>
       </div>
       <div class="view-actions">
-        <button @click="showAddModal = true" class="btn btn-purple">
-          <Plus :size="18" /> Nouvelle Lessive
+        <button @click="showAddModal = true" class="btn btn-primary">
+          <Plus :size="18" /> Nouvelle lessive
         </button>
       </div>
     </div>
@@ -143,7 +144,7 @@ const handleDeleteLessive = async (id: string) => {
     <div class="lessives-grid-layout">
       <!-- Historical List Card -->
       <div class="card glass history-card">
-        <h3 class="font-bold flex-row mb-4"><Archive :size="18" /> Historique des Lessives</h3>
+        <h3 class="font-bold flex-row mb-4"><Archive :size="18" /> Historique</h3>
         
         <div v-if="isLoading" class="text-center py-4">
           <div class="spinner"></div>
@@ -158,14 +159,16 @@ const handleDeleteLessive = async (id: string) => {
           <div v-for="les in lessives" :key="les.id" class="history-item">
             <div class="history-header">
               <span class="history-date flex-row"><Calendar :size="14" /> {{ formatToFrenchDate(les.data.date) }}</span>
-              <button @click="handleDeleteLessive(les.id!)" class="delete-link">Supprimer</button>
+              <button @click="handleDeleteLessive(les.id!)" class="action-btn delete" title="Supprimer">
+                <Trash2 :size="14" />
+              </button>
             </div>
-            <div class="history-clothes text-secondary mt-2">
-              <div class="garment-pills">
+            <div class="history-clothes text-sub mt-2">
+              <div class="flex-row flex-wrap gap-1">
                 <span 
                   v-for="gId in les.data.vetements_laves || []" 
                   :key="gId" 
-                  class="garment-pill"
+                  class="badge badge-secondary"
                 >
                   {{ clothes.find(c => c.id === gId)?.data.nom || 'Vêtement inconnu' }}
                 </span>
@@ -177,18 +180,18 @@ const handleDeleteLessive = async (id: string) => {
 
       <!-- Quick Explanation Card -->
       <div class="card glass info-card-side">
-        <h3 class="font-bold flex-row mb-2"><Clock :size="18" class="text-purple" /> Comment ça marche ?</h3>
-        <p class="text-secondary text-sm leading-relaxed mb-4">
+        <h3 class="font-bold mb-2"><Clock :size="18" /> Comment ça marche ?</h3>
+        <p class="text-sub text-sm leading-relaxed mb-4">
           1. Dès que tu mets un habit au linge sale, décoche sa disponibilité dans l'onglet <strong>Dressing</strong> (ou coche l'option lors de l'enregistrement de ta tenue).
         </p>
-        <p class="text-secondary text-sm leading-relaxed mb-4">
-          2. Quand tu étends ta machine, clique sur <strong>Nouvelle Lessive</strong> et sélectionne les vêtements lavés.
+        <p class="text-sub text-sm leading-relaxed mb-4">
+          2. Quand tu étends ta machine, clique sur <strong>Nouvelle lessive</strong> et sélectionne les vêtements lavés.
         </p>
-        <p class="text-secondary text-sm leading-relaxed mb-4">
+        <p class="text-sub text-sm leading-relaxed mb-4">
           3. Sauf si tu coches "Disponible immédiatement", les habits resteront indisponibles le temps qu'ils sèchent (délai de séchage configurable dans les <strong>Préférences</strong>, par défaut 24 heures).
         </p>
-        <p class="text-secondary text-sm leading-relaxed">
-          4. Une fois secs, l'application les remettra **automatiquement disponibles**, remettra à zéro leur nombre d'utilisations, et mettra à jour leur date de dernier lavage !
+        <p class="text-sub text-sm leading-relaxed">
+          4. Une fois secs, l'application les remettra automatiquement disponibles, remettra à zéro leur nombre d'utilisations, et mettra à jour leur date de dernier lavage !
         </p>
       </div>
     </div>
@@ -197,7 +200,7 @@ const handleDeleteLessive = async (id: string) => {
     <div v-if="showAddModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>🧺 Enregistrer une Lessive</h3>
+          <h3>Enregistrer une lessive</h3>
           <button @click="showAddModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
@@ -207,10 +210,10 @@ const handleDeleteLessive = async (id: string) => {
           </div>
 
           <div class="clothes-selector-box mt-4">
-            <label class="font-bold text-xs text-secondary mb-2 block">SÉLECTIONNE LES VÊTEMENTS LAVÉS *</label>
+            <label class="font-bold text-xs text-sub mb-2 block">SÉLECTIONNE LES VÊTEMENTS LAVÉS *</label>
             
             <div class="selection-actions flex-row mb-2">
-              <button @click="selectAllUnavailable" class="btn btn-sm text-xs btn-purple" :disabled="clothesSortedByLikelihood.unavailable.length === 0">
+              <button @click="selectAllUnavailable" class="btn btn-sm text-xs btn-primary" :disabled="clothesSortedByLikelihood.unavailable.length === 0">
                 Tout sélectionner au linge sale ({{ clothesSortedByLikelihood.unavailable.length }})
               </button>
               <button @click="deselectAll" class="btn btn-sm text-xs btn-secondary">
@@ -266,7 +269,7 @@ const handleDeleteLessive = async (id: string) => {
                 <input type="checkbox" v-model="makeAvailableImmediately" />
                 <span class="slider"></span>
               </label>
-              <span class="text-secondary font-bold text-sm">Disponibles immédiatement (déjà secs)</span>
+              <span class="text-sub font-bold text-sm">Disponibles immédiatement (déjà secs)</span>
             </div>
             <p class="text-xs text-muted mt-1 ml-10">(Si décoché, ils deviendront disponibles après le délai de séchage configuré)</p>
           </div>
@@ -276,7 +279,7 @@ const handleDeleteLessive = async (id: string) => {
             {{ selectedGarments.length }} vêtements sélectionnés
           </span>
           <button @click="showAddModal = false" class="btn btn-secondary">Annuler</button>
-          <button @click="handleAddLessive" class="btn btn-purple" :disabled="selectedGarments.length === 0">
+          <button @click="handleAddLessive" class="btn btn-primary" :disabled="selectedGarments.length === 0">
             Enregistrer
           </button>
         </div>
@@ -305,7 +308,7 @@ const handleDeleteLessive = async (id: string) => {
 
 .history-item {
   border: 1px solid var(--border-color);
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: color-mix(in srgb, var(--color-white) 2%, transparent);
   border-radius: var(--radius-sm);
   padding: 1rem;
 }
@@ -323,39 +326,8 @@ const handleDeleteLessive = async (id: string) => {
   font-size: 0.9rem;
 }
 
-.delete-link {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-  
-  &:hover {
-    color: var(--color-danger);
-    text-decoration: underline;
-  }
-}
-
-.garment-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.garment-pill {
-  font-size: 0.775rem;
-  font-weight: 700;
-  background-color: rgba(139, 92, 246, 0.08);
-  border: 1px solid rgba(139, 92, 246, 0.15);
-  color: #a78bfa;
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-sm);
-}
-
 .info-card-side {
-  border-color: rgba(139, 92, 246, 0.15);
-  background-color: rgba(139, 92, 246, 0.01);
+  border-color: var(--color-border);
 }
 
 .block {
@@ -368,7 +340,7 @@ const handleDeleteLessive = async (id: string) => {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 0.75rem;
-  background-color: rgba(15, 23, 42, 0.3);
+  background-color: color-mix(in srgb, var(--color-black) 30%, transparent);
 }
 
 .laundry-section {
@@ -376,7 +348,7 @@ const handleDeleteLessive = async (id: string) => {
     display: block;
     font-size: 0.75rem;
     font-weight: 800;
-    color: var(--text-secondary);
+    color: var(--text-sub);
     text-transform: uppercase;
     letter-spacing: 0.025em;
     margin-bottom: 0.5rem;
@@ -393,7 +365,7 @@ const handleDeleteLessive = async (id: string) => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: color-mix(in srgb, var(--color-white) 2%, transparent);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 0.4rem 0.6rem;
@@ -407,12 +379,13 @@ const handleDeleteLessive = async (id: string) => {
   }
   
   &.checked {
-    background-color: rgba(139, 92, 246, 0.1);
-    border-color: var(--color-purple);
+    background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    border-color: var(--color-primary);
     
     .check-box {
-      background-color: var(--color-purple);
-      border-color: var(--color-purple);
+      background-color: var(--color-primary);
+      border-color: var(--color-primary);
+      color: var(--color-primary-contrast);
     }
   }
 }
@@ -425,7 +398,7 @@ const handleDeleteLessive = async (id: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(15, 23, 42, 0.6);
+  background-color: var(--bg-glass);
   flex-shrink: 0;
 }
 
@@ -449,7 +422,7 @@ const handleDeleteLessive = async (id: string) => {
   width: 32px;
   height: 32px;
   border: 4px solid var(--border-color);
-  border-top-color: var(--color-purple);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto;

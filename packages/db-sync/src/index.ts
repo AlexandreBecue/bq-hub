@@ -125,17 +125,55 @@ export interface DatabaseBackup {
   exportedAt: number;
 }
 
-export async function exportDatabase(db: BQDatabase, collectionIds?: string[]): Promise<string> {
+export interface ExportOptions {
+  excludeDeleted?: boolean;
+  appPrefix?: string;
+  collectionIds?: string[];
+}
+
+export async function exportDatabase(
+  db: BQDatabase, 
+  collectionIdsOrOptions?: string[] | ExportOptions,
+  options?: ExportOptions
+): Promise<string> {
+  let opts: ExportOptions = { excludeDeleted: true };
+  
+  if (Array.isArray(collectionIdsOrOptions)) {
+    opts.collectionIds = collectionIdsOrOptions;
+    if (options) opts = { ...opts, ...options };
+  } else if (collectionIdsOrOptions && typeof collectionIdsOrOptions === 'object') {
+    opts = { ...opts, ...collectionIdsOrOptions };
+  }
+
   let collections = await db.collections.toArray();
   let records = await db.records.toArray();
   let views = await db.views.toArray();
   let templates = await db.templates.toArray();
 
-  if (collectionIds && collectionIds.length > 0) {
-    collections = collections.filter(c => collectionIds.includes(c.id));
-    records = records.filter(r => collectionIds.includes(r.collectionId));
-    views = views.filter(v => collectionIds.includes(v.collectionId));
-    templates = templates.filter(t => collectionIds.includes(t.collectionId));
+  // 1. Exclude soft-deleted tombstones (default: true)
+  if (opts.excludeDeleted !== false) {
+    collections = collections.filter(c => !c.deletedAt);
+    records = records.filter(r => !r.deletedAt);
+    views = views.filter(v => !v.deletedAt);
+    templates = templates.filter(t => !t.deletedAt);
+  }
+
+  // 2. Filter by appPrefix (unless bq-graph or empty)
+  if (opts.appPrefix && opts.appPrefix !== 'bq-graph') {
+    const prefix = opts.appPrefix.toLowerCase();
+    const appCols = collections.filter(c => c.name.toLowerCase().startsWith(prefix));
+    const appColIds = new Set(appCols.map(c => c.id));
+
+    collections = appCols;
+    records = records.filter(r => appColIds.has(r.collectionId));
+    views = views.filter(v => appColIds.has(v.collectionId));
+    templates = templates.filter(t => appColIds.has(t.collectionId));
+  } else if (opts.collectionIds && opts.collectionIds.length > 0) {
+    const filterSet = new Set(opts.collectionIds);
+    collections = collections.filter(c => filterSet.has(c.id));
+    records = records.filter(r => filterSet.has(r.collectionId));
+    views = views.filter(v => filterSet.has(v.collectionId));
+    templates = templates.filter(t => filterSet.has(t.collectionId));
   }
 
   const backup: DatabaseBackup = {

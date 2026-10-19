@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { db, generateId, type RecordEntry } from '../db/index';
 import { CLOTHES_COL_ID, getClothesRecords, getTenuesRecords, getLessivesRecords, calculateGarmentStats } from '../db/queries';
-import { Search, Plus, Edit2, Trash2, ShieldAlert, Sparkles, X } from '@lucide/vue';
+import { Search, Plus, Edit2, Trash2, ShieldAlert, X } from '@lucide/vue';
 
 const emit = defineEmits(['data-updated']);
 
@@ -131,7 +131,7 @@ const handleAddGarment = async () => {
         taille: formState.value.taille.trim(),
         matiere: formState.value.matiere.trim(),
         is_available: formState.value.is_available,
-        saison: formState.value.saison
+        saison: [...formState.value.saison]
       },
       createdAt: Date.now(),
       updatedAt: Date.now()
@@ -176,7 +176,7 @@ const handleUpdateGarment = async () => {
         taille: formState.value.taille.trim(),
         matiere: formState.value.matiere.trim(),
         is_available: formState.value.is_available,
-        saison: formState.value.saison
+        saison: [...formState.value.saison]
       },
       updatedAt: Date.now()
     });
@@ -192,7 +192,6 @@ const handleUpdateGarment = async () => {
 
 // Handle Delete Garment
 const handleDeleteGarment = async (id: string) => {
-  if (!confirm('Es-tu sûr de vouloir supprimer ce vêtement ?')) return;
   try {
     await db.records.update(id, {
       deletedAt: Date.now(),
@@ -219,12 +218,12 @@ const toggleSeasonInForm = (season: string) => {
   <div class="dressing-view">
     <div class="view-header">
       <div>
-        <h2>👗 Mon Dressing</h2>
-        <p class="text-secondary">Gère ta garde-robe, vérifie la disponibilité de tes pièces et consulte tes statistiques de ports.</p>
+        <h2>Dressing</h2>
+        <p class="text-sub">Gère ta garde-robe, vérifie la disponibilité de tes pièces et consulte tes statistiques de ports.</p>
       </div>
       <div class="view-actions">
         <button @click="openAddModal" class="btn btn-primary">
-          <Plus :size="18" /> Nouveau Vêtement
+          <Plus :size="18" /> Nouveau vêtement
         </button>
       </div>
     </div>
@@ -250,7 +249,7 @@ const toggleSeasonInForm = (season: string) => {
         <select v-model="availabilityFilter" class="select">
           <option value="all">Tous les états</option>
           <option value="available">Disponibles uniquement</option>
-          <option value="unavailable">Indisponibles / Linge sale</option>
+          <option value="unavailable">Indisponibles</option>
         </select>
       </div>
     </div>
@@ -258,15 +257,26 @@ const toggleSeasonInForm = (season: string) => {
     <!-- Clothes List / Table -->
     <div v-if="isLoading" class="loading-state card glass">
       <div class="spinner"></div>
-      <p class="mt-2 text-secondary">Chargement de ta garde-robe...</p>
+      <p class="mt-2 text-sub">Chargement de ta garde-robe...</p>
+    </div>
+
+    <div v-else-if="clothes.length === 0" class="empty-state card glass text-center">
+      <ShieldAlert class="empty-icon text-muted" :size="48" />
+      <h3>Votre dressing est vide</h3>
+      <p class="text-sub mt-2">Commencez par ajouter votre premier vêtement, ou générez un jeu de données de démo dans les paramètres !</p>
+      <div class="flex-row justify-center gap-4 mt-4 flex-wrap">
+        <button @click="openAddModal" class="btn btn-primary">
+          <Plus :size="18" /> Ajouter un vêtement
+        </button>
+      </div>
     </div>
 
     <div v-else-if="filteredClothes.length === 0" class="empty-state card glass text-center">
       <ShieldAlert class="empty-icon text-muted" :size="48" />
       <h3>Aucun vêtement trouvé</h3>
-      <p class="text-secondary mt-2">Modifie tes filtres ou ajoute une nouvelle pièce pour commencer !</p>
-      <button @click="openAddModal" class="btn btn-primary mt-4">
-        <Plus :size="18" /> Ajouter un vêtement
+      <p class="text-sub mt-2">Aucun habit ne correspond à vos filtres de recherche.</p>
+      <button @click="searchQuery = ''; categoryFilter = ''; availabilityFilter = 'all'" class="btn btn-secondary mt-4">
+        Réinitialiser les filtres
       </button>
     </div>
 
@@ -281,10 +291,10 @@ const toggleSeasonInForm = (season: string) => {
           <div class="garment-card-header">
             <span class="badge badge-primary">{{ item.data.categorie }}</span>
             <div class="garment-actions">
-              <button @click="openEditModal(item)" class="icon-btn" title="Modifier">
+              <button @click="openEditModal(item)" class="action-btn edit" title="Modifier">
                 <Edit2 :size="14" />
               </button>
-              <button @click="handleDeleteGarment(item.id!)" class="icon-btn delete-btn" title="Supprimer">
+              <button @click="handleDeleteGarment(item.id!)" class="action-btn delete" title="Supprimer">
                 <Trash2 :size="14" />
               </button>
             </div>
@@ -328,13 +338,13 @@ const toggleSeasonInForm = (season: string) => {
                 <span class="slider"></span>
               </label>
               <span class="avail-label" :class="{ 'text-success': item.data.is_available !== false, 'text-danger': item.data.is_available === false }">
-                {{ item.data.is_available !== false ? 'Disponible' : 'Linge Sale / Indispo' }}
+                {{ item.data.is_available !== false ? 'Disponible' : 'Indisponible' }}
               </span>
             </div>
 
             <!-- Wear Counter -->
-            <div class="wears-count-badge" :class="item.wearsCount > 3 ? 'warn-badge' : 'info-badge'">
-              <Sparkles :size="12" class="sparkle-icon" />
+            <div class="badge" :class="item.wearsCount > 3 ? 'badge-warning' : 'badge-secondary'">
+              <Sparkles :size="12" class="mr-1" />
               <span>Porté {{ item.wearsCount }} {{ item.wearsCount > 1 ? 'fois' : 'fois' }}</span>
             </div>
           </div>
@@ -405,7 +415,7 @@ const toggleSeasonInForm = (season: string) => {
                 <input type="checkbox" v-model="formState.is_available" />
                 <span class="slider"></span>
               </label>
-              <span class="text-secondary font-bold">Disponible immédiatement dans l'armoire</span>
+              <span class="text-sub font-bold">Disponible immédiatement dans l'armoire</span>
             </div>
           </div>
         </div>
@@ -479,7 +489,7 @@ const toggleSeasonInForm = (season: string) => {
                 <input type="checkbox" v-model="formState.is_available" />
                 <span class="slider"></span>
               </label>
-              <span class="text-secondary font-bold">Disponible immédiatement dans l'armoire</span>
+              <span class="text-sub font-bold">Disponible immédiatement dans l'armoire</span>
             </div>
           </div>
         </div>
@@ -533,8 +543,8 @@ const toggleSeasonInForm = (season: string) => {
   background-color: var(--bg-secondary);
   
   &.unavailable-card {
-    border-color: rgba(239, 68, 68, 0.2);
-    background-color: rgba(30, 41, 59, 0.4);
+    border-color: color-mix(in srgb, var(--color-danger) 20%, transparent);
+    background-color: color-mix(in srgb, var(--bg-secondary) 40%, transparent);
     opacity: 0.8;
   }
 }
@@ -549,26 +559,6 @@ const toggleSeasonInForm = (season: string) => {
 .garment-actions {
   display: flex;
   gap: 0.25rem;
-}
-
-.icon-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  padding: 0.35rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: var(--transition);
-  
-  &:hover {
-    color: var(--text-primary);
-    background-color: var(--border-hover);
-  }
-  
-  &.delete-btn:hover {
-    color: var(--color-danger);
-    background-color: rgba(239, 68, 68, 0.1);
-  }
 }
 
 .garment-name {
@@ -590,13 +580,13 @@ const toggleSeasonInForm = (season: string) => {
   }
   
   .val {
-    color: var(--text-secondary);
+    color: var(--text-sub);
   }
   
   .highlighted-val {
-    color: #e2e8f0;
+    color: var(--text-primary);
     font-weight: 700;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: color-mix(in srgb, var(--color-white) 5%, transparent);
     padding: 0.05rem 0.35rem;
     border-radius: var(--radius-sm);
   }
@@ -611,11 +601,11 @@ const toggleSeasonInForm = (season: string) => {
 .mini-tag {
   font-size: 0.7rem;
   font-weight: 700;
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: color-mix(in srgb, var(--color-white) 4%, transparent);
   border: 1px solid var(--border-color);
   padding: 0.05rem 0.25rem;
   border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  color: var(--text-sub);
 }
 
 .garment-card-footer {
@@ -637,32 +627,6 @@ const toggleSeasonInForm = (season: string) => {
   }
 }
 
-.wears-count-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  font-weight: 700;
-  font-size: 0.75rem;
-  
-  &.info-badge {
-    background-color: rgba(59, 130, 246, 0.1);
-    color: #60a5fa;
-    border: 1px solid rgba(59, 130, 246, 0.15);
-  }
-  
-  &.warn-badge {
-    background-color: rgba(245, 158, 11, 0.1);
-    color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.15);
-  }
-  
-  .sparkle-icon {
-    flex-shrink: 0;
-  }
-}
-
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -671,15 +635,15 @@ const toggleSeasonInForm = (season: string) => {
 
 .btn-season {
   flex-grow: 1;
-  background-color: rgba(15, 23, 42, 0.4);
-  color: var(--text-secondary);
+  background-color: var(--bg-glass);
+  color: var(--text-sub);
   border-color: var(--border-color);
   
   &.active-season {
-    background-color: var(--color-purple);
-    color: #ffffff;
-    border-color: var(--color-purple);
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.2);
+    background-color: var(--color-primary);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--color-primary) 20%, transparent);
   }
 }
 

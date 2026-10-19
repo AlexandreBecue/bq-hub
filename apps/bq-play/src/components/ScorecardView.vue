@@ -5,9 +5,11 @@ import {
   PARTIES_COL_ID, 
   getLudothequeRecords 
 } from '../db/queries';
-import { Play, Trash2, ShieldAlert, Check, X, Award, RotateCcw } from '@lucide/vue';
+import { Play, Trash2, ShieldAlert, Check, X, Award, RotateCcw, PenTool, History } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
+const toast = useToast();
 
 const games = ref<RecordEntry[]>([]);
 const isLoading = ref(true);
@@ -87,7 +89,7 @@ const addPlayer = () => {
   const name = newPlayerName.value.trim();
   if (!name) return;
   if (players.value.includes(name)) {
-    alert('Ce joueur est déjà dans la partie.');
+    toast.warning('Ce joueur est déjà dans la partie.');
     return;
   }
   players.value.push(name);
@@ -101,11 +103,11 @@ const removePlayer = (name: string) => {
 // Start Game!
 const startGame = () => {
   if (!selectedGameId.value) {
-    alert('Veuillez sélectionner un jeu.');
+    toast.warning('Veuillez sélectionner un jeu.');
     return;
   }
   if (players.value.length === 0) {
-    alert('Veuillez ajouter au moins un joueur.');
+    toast.warning('Veuillez ajouter au moins un joueur.');
     return;
   }
 
@@ -181,7 +183,6 @@ const deleteLastRound = () => {
 // End & Save Game session
 const endAndSaveGame = async () => {
   if (activeGameDetails.value.manches.length === 0) {
-    if (!confirm('Aucune manche n\'a été jouée. Voulez-vous simplement annuler la partie ?')) return;
     cancelGame();
     return;
   }
@@ -224,7 +225,7 @@ const endAndSaveGame = async () => {
     localStorage.removeItem('bq-play-active-session');
     
     emit('data-updated');
-    alert('La partie a été enregistrée avec succès ! 👑');
+    toast.success('La partie a été enregistrée avec succès !');
   } catch (err) {
     console.error(err);
   }
@@ -232,7 +233,6 @@ const endAndSaveGame = async () => {
 
 // Cancel active game
 const cancelGame = () => {
-  if (!confirm('Es-tu sûr de vouloir annuler la partie en cours ? Toutes les manches saisies seront perdues.')) return;
   isActiveGame.value = false;
   localStorage.removeItem('bq-play-active-session');
 };
@@ -242,8 +242,8 @@ const cancelGame = () => {
   <div class="scorecard-view">
     <div class="view-header">
       <div>
-        <h2>🎲 Scorecard en Direct</h2>
-        <p class="text-secondary">Saisis les scores de tes amis manche par manche, suis les totaux en temps réel et sois notifié dès que la limite est franchie.</p>
+        <h2>Tableau des scores</h2>
+        <p class="text-sub">Saisis les scores de tes amis manche par manche, suis les totaux en temps réel et sois notifié dès que la limite est franchie.</p>
       </div>
     </div>
 
@@ -254,7 +254,7 @@ const cancelGame = () => {
 
     <!-- SCREEN 1: Game setup form (not active game) -->
     <div v-else-if="!isActiveGame" class="setup-game-screen card glass max-width-600">
-      <h3 class="font-bold flex-row mb-4"><Play :size="18" class="text-primary" /> Lancer une partie</h3>
+      <h3 class="font-bold flex-row mb-4"><Play :size="18" /> Lancer une partie</h3>
       
       <div class="form-group">
         <label>Sélectionner le Jeu</label>
@@ -262,7 +262,7 @@ const cancelGame = () => {
           <option v-if="games.length === 0" value="">Aucun jeu disponible</option>
           <option v-for="g in games" :key="g.id" :value="g.id">{{ g.data.nom }} ({{ g.data.type_jeu }})</option>
         </select>
-        <p class="text-xs text-muted mt-1" v-if="games.length === 0">Pense à ajouter un jeu dans l'onglet **Ludothèque** avant de jouer.</p>
+        <p class="text-xs text-muted mt-1" v-if="games.length === 0">Pense à ajouter un jeu dans l'onglet <strong>Ludothèque</strong> avant de jouer.</p>
       </div>
 
       <div class="form-group">
@@ -337,7 +337,7 @@ const cancelGame = () => {
 
         <!-- Saisie points for Next Round -->
         <div class="card glass new-round-card">
-          <h3 class="font-bold text-sm flex-row mb-3">🖊️ Saisie Manche {{ activeGameDetails.manches.length + 1 }}</h3>
+          <h3 class="font-bold text-sm flex-row mb-3"><PenTool :size="14" /> Saisie Manche {{ activeGameDetails.manches.length + 1 }}</h3>
           
           <div class="round-scores-inputs mt-2">
             <div 
@@ -345,7 +345,7 @@ const cancelGame = () => {
               :key="p" 
               class="round-input-group flex-row justify-between mb-2"
             >
-              <span class="font-bold text-secondary text-sm">{{ p }} :</span>
+              <span class="font-bold text-sub text-sm">{{ p }} :</span>
               <input 
                 v-model="currentRoundScores[p]" 
                 type="number" 
@@ -372,7 +372,7 @@ const cancelGame = () => {
 
       <!-- History of rounds list -->
       <div class="card glass rounds-ledger-card mt-4">
-        <h3 class="font-bold text-sm mb-3">📋 Historique des Manches</h3>
+        <h3 class="font-bold text-sm mb-3 flex-row align-center gap-1"><History :size="14" /> Historique des Manches</h3>
         
         <div v-if="activeGameDetails.manches.length === 0" class="text-center py-3 text-muted text-xs">
           <p>Aucune manche jouée pour le moment. Renseigne les scores ci-dessus.</p>
@@ -399,7 +399,7 @@ const cancelGame = () => {
 
       <!-- Footer action controls -->
       <div class="active-footer-actions flex-row mt-4">
-        <button @click="endAndSaveGame" class="btn btn-accent flex-grow font-black uppercase text-sm flex-row justify-center">
+        <button @click="endAndSaveGame" class="btn btn-secondary flex-grow font-black uppercase text-sm flex-row justify-center">
           <Check :size="16" /> Finir & Enregistrer la Partie
         </button>
         <button @click="cancelGame" class="btn btn-danger btn-sm">
@@ -436,7 +436,7 @@ const cancelGame = () => {
   .remove-chip-btn {
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.7);
+    color: color-mix(in srgb, var(--color-white) 70%, transparent);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -452,8 +452,8 @@ const cancelGame = () => {
 }
 
 .overdue-card {
-  border-color: rgba(239, 68, 68, 0.25) !important;
-  background-color: rgba(239, 68, 68, 0.02) !important;
+  border-color: color-mix(in srgb, var(--color-danger) 25%, transparent) !important;
+  background-color: color-mix(in srgb, var(--color-danger) 2%, transparent) !important;
   padding: 0.75rem 1rem !important;
 }
 
@@ -475,17 +475,17 @@ const cancelGame = () => {
 }
 
 .player-total-box {
-  background-color: rgba(255, 255, 255, 0.01);
+  background-color: color-mix(in srgb, var(--color-white) 1%, transparent);
   border: 1px solid var(--border-color);
   padding: 0.75rem;
   border-radius: var(--radius-sm);
   text-align: center;
   
   &.leader {
-    border-color: rgba(139, 92, 246, 0.3);
-    background-color: rgba(139, 92, 246, 0.05);
+    border-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
+    background-color: color-mix(in srgb, var(--color-primary) 5%, transparent);
     
-    .p-name { color: #a78bfa; }
+    .p-name { color: var(--color-primary); }
   }
 }
 
@@ -523,8 +523,8 @@ const cancelGame = () => {
   padding: 0.5rem;
 }
 
-.text-success { color: #34d399 !important; }
-.text-danger { color: #f87171 !important; }
+.text-success { color: var(--color-success) !important; }
+.text-danger { color: var(--color-danger) !important; }
 
 .text-xs { font-size: 0.75rem; }
 .text-sm { font-size: 0.85rem; }

@@ -13,7 +13,7 @@ export class BQDriveSync {
 
   private googleGisClient: any = null;
 
-  constructor(db: BQDatabase, syncFileName: string = 'bq-sync.json') {
+  constructor(db: BQDatabase, syncFileName: string = 'bq-hub-sync.json') {
     this.db = db;
     this.syncFileName = syncFileName;
   }
@@ -39,14 +39,14 @@ export class BQDriveSync {
   }
 
   /**
-   * Initialize Google Identity Services Client
+   * Initialize Google Identity Services Client with drive.appdata scope
    */
   public initializeGisClient(clientId: string, callback: (token: string) => void) {
     if (this.googleGisClient) return;
 
     this.googleGisClient = (window as any).google.accounts.oauth2.initTokenClient({
       client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/drive.file',
+      scope: 'https://www.googleapis.com/auth/drive.appdata',
       callback: (response: any) => {
         if (response.error) {
           this.syncStatusMsg.value = 'Authentification annulée ou refusée.';
@@ -124,11 +124,11 @@ export class BQDriveSync {
   }
 
   /**
-   * Find the sync file in user's Drive appFolder/root
+   * Find the sync file in user's Drive hidden appDataFolder
    */
   private async findSyncFileId(token: string): Promise<string | null> {
     const q = encodeURIComponent(`name = '${this.syncFileName}' and trashed = false`);
-    const url = `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`;
+    const url = `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=appDataFolder&fields=files(id,name)`;
     
     const resp = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` }
@@ -163,12 +163,16 @@ export class BQDriveSync {
   }
 
   private async uploadCloudData(token: string, backupData: any, fileId?: string): Promise<string> {
-    const metadata = {
+    const metadata: any = {
       name: this.syncFileName,
       mimeType: 'application/json'
     };
     
-    const boundary = 'bq_metrics_sync_boundary';
+    if (!fileId) {
+      metadata.parents = ['appDataFolder'];
+    }
+    
+    const boundary = 'bq_hub_sync_boundary';
     const delimiter = `\r\n--${boundary}\r\n`;
     const closeDelimiter = `\r\n--${boundary}--`;
     

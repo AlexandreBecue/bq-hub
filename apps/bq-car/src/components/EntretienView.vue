@@ -9,9 +9,11 @@ import {
   calculateCurrentMileage,
   formatToFrenchDate
 } from '../db/queries';
-import { Plus, Calendar, ShieldAlert, Sparkles, X } from '@lucide/vue';
+import { Plus, Calendar, ShieldAlert, Sparkles, X, Edit2, Trash2, Wrench } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
+const toast = useToast();
 
 const vehicles = ref<RecordEntry[]>([]);
 const carburants = ref<RecordEntry[]>([]);
@@ -22,6 +24,7 @@ const selectedVehicleId = ref(localStorage.getItem('bq-car-active-vehicle') || '
 
 // Form State
 const showAddModal = ref(false);
+const editingEntretien = ref<RecordEntry | null>(null);
 const formEntretien = ref({
   date: new Date().toISOString().split('T')[0],
   type: 'Vidange',
@@ -31,7 +34,7 @@ const formEntretien = ref({
   kilometrage: ''
 });
 
-const typesList = ["Vidange", "Révision", "Contrôle technique", "Pneus", "Freins", "Courroie", "Batterie", "Réparation", "Autre"];
+const typesList = ["Vidange", "Révision", "Contrôle technique", "Pneus", "Freins", "Courroie", "Batterie", "Bougies", "Climatisation", "Réparation", "Autre"];
 
 const loadData = async () => {
   isLoading.value = true;
@@ -81,6 +84,13 @@ const currentMileage = computed(() => {
   return calculateCurrentMileage(activeVehicle.value.data.nom, initialKm, carburants.value, entretiens.value);
 });
 
+// Total maintenance cost
+const totalMaintenanceCost = computed(() => {
+  return activeVehicleEntretiens.value.reduce((sum, e) => {
+    return sum + (Number(e.data.prix) || 0);
+  }, 0);
+});
+
 // --- PREDICATIVE MAINTENANCE SUGGESTIONS ENGINE ---
 // Defined maintenance schedules/rules
 const SCHEDULES = [
@@ -93,14 +103,14 @@ const SCHEDULES = [
   },
   {
     type: 'Contrôle technique',
-    label: 'Contrôle Technique réglementaire',
+    label: 'Contrôle Technique',
     limitMonths: 24,
     limitKm: 999999, // CT doesn't have a km limit
     desc: 'Obligation légale de contrôle de sécurité routière tous les 2 ans.'
   },
   {
     type: 'Révision',
-    label: 'Révision complète constructeur',
+    label: 'Révision complète',
     limitMonths: 24,
     limitKm: 30000,
     desc: 'Vérification complète de tous les fluides, filtres d\'habitacle et bougies.'
@@ -111,6 +121,41 @@ const SCHEDULES = [
     limitMonths: 36,
     limitKm: 40000,
     desc: 'Garantit l\'efficacité de ton freinage d\'urgence.'
+  },
+  {
+    type: 'Pneus',
+    label: 'Changement ou permutation des pneus',
+    limitMonths: 60,
+    limitKm: 45000,
+    desc: 'Assure une bonne adhérence au sol et des distances de freinage optimales.'
+  },
+  {
+    type: 'Batterie',
+    label: 'Remplacement de la batterie',
+    limitMonths: 48,
+    limitKm: 999999,
+    desc: 'Prévient les pannes de démarrage, notamment en période hivernale.'
+  },
+  {
+    type: 'Courroie',
+    label: 'Courroie de distribution',
+    limitMonths: 120,
+    limitKm: 120000,
+    desc: 'Élément capital. Son remplacement préventif évite une casse moteur définitive.'
+  },
+  {
+    type: 'Bougies',
+    label: 'Bougies d\'allumage ou de préchauffage',
+    limitMonths: 48,
+    limitKm: 60000,
+    desc: 'Garantit une bonne combustion, réduit les émissions et facilite les démarrages.'
+  },
+  {
+    type: 'Climatisation',
+    label: 'Recharge clim & Filtre habitacle',
+    limitMonths: 24,
+    limitKm: 30000,
+    desc: 'Maintient un air sain dans l\'habitacle et prévient l\'usure prématurée du compresseur.'
   }
 ];
 
@@ -123,7 +168,7 @@ const maintenanceSuggestions = computed(() => {
   return SCHEDULES.map(sch => {
     // Find the most recent maintenance of this specific type
     // We do a loose check on type (either exact match or name contains it)
-    const matches = myEntretiens.filter(e => 
+    const matches = myEntretiens.filter(e =>
       String(e.data.type).toLowerCase() === sch.type.toLowerCase() ||
       String(e.data.commentaire).toLowerCase().includes(sch.type.toLowerCase())
     );
@@ -134,6 +179,7 @@ const maintenanceSuggestions = computed(() => {
         ...sch,
         status: 'unknown',
         statusText: 'Aucun historique',
+        statusLabel: 'Aucun historique',
         statusColor: 'text-warning',
         badgeClass: 'badge-warning',
         detailText: `Saisie requise pour planifier. Limites : ${sch.limitMonths} mois ou ${sch.limitKm.toLocaleString('fr')} km.`
@@ -160,24 +206,27 @@ const maintenanceSuggestions = computed(() => {
     const isApproachingKm = drivenKm >= sch.limitKm * 0.85;
 
     let status = 'ok';
-    let statusText = 'À jour 🟢';
+    let statusText = 'À jour';
+    let statusLabel = 'À jour';
     let statusColor = 'text-success';
     let badgeClass = 'badge-success';
     let detailText = '';
 
     if (isOverdueTime || isOverdueKm) {
       status = 'overdue';
-      statusText = 'En retard 🔴';
+      statusText = 'En retard';
+      statusLabel = 'En retard';
       statusColor = 'text-danger';
       badgeClass = 'badge-danger';
-      
+
       const reasons = [];
       if (isOverdueTime) reasons.push(`${elapsedMonths} mois écoulés (limite : ${sch.limitMonths}m)`);
       if (isOverdueKm) reasons.push(`${drivenKm.toLocaleString('fr')} km parcourus (limite : ${sch.limitKm.toLocaleString('fr')}km)`);
       detailText = `Dépassement : ${reasons.join(' et ')}.`;
     } else if (isApproachingTime || isApproachingKm) {
       status = 'soon';
-      statusText = 'À prévoir bientôt 🟡';
+      statusText = 'À prévoir bientôt';
+      statusLabel = 'À prévoir bientôt';
       statusColor = 'text-warning';
       badgeClass = 'badge-warning';
 
@@ -189,7 +238,7 @@ const maintenanceSuggestions = computed(() => {
       // completely ok
       const monthsLeft = sch.limitMonths - elapsedMonths;
       const kmLeft = sch.limitKm - drivenKm;
-      
+
       const parts = [];
       if (sch.limitMonths < 100) parts.push(`tranquille pendant ${monthsLeft} mois`);
       if (sch.limitKm < 900000) parts.push(`encore ${kmLeft.toLocaleString('fr')} km possibles`);
@@ -200,6 +249,7 @@ const maintenanceSuggestions = computed(() => {
       ...sch,
       status,
       statusText,
+      statusLabel,
       statusColor,
       badgeClass,
       detailText,
@@ -212,9 +262,10 @@ const maintenanceSuggestions = computed(() => {
 // Open Add modal
 const openAddModal = () => {
   if (!activeVehicle.value) {
-    alert('Veuillez d\'abord ajouter un véhicule.');
+    toast.warning('Veuillez d\'abord ajouter un véhicule.');
     return;
   }
+  editingEntretien.value = null;
   formEntretien.value = {
     date: new Date().toISOString().split('T')[0],
     type: 'Vidange',
@@ -226,39 +277,79 @@ const openAddModal = () => {
   showAddModal.value = true;
 };
 
-// Handle Log
-const handleAddEntretien = async () => {
+// Open Edit modal
+const openEditModal = (e: RecordEntry) => {
+  editingEntretien.value = e;
+  formEntretien.value = {
+    date: e.data.date || new Date().toISOString().split('T')[0],
+    type: e.data.type || 'Vidange',
+    prix: e.data.prix !== null && e.data.prix !== undefined ? String(e.data.prix) : '',
+    partenaire: e.data.partenaire || '',
+    commentaire: e.data.commentaire || '',
+    kilometrage: String(e.data.kilometrage || '')
+  };
+  showAddModal.value = true;
+};
+
+// Close Modal
+const closeModal = () => {
+  showAddModal.value = false;
+  editingEntretien.value = null;
+};
+
+// Handle Log / Save (Add and Edit support)
+const handleSaveEntretien = async () => {
   if (!activeVehicle.value) return;
   const km = Number(formEntretien.value.kilometrage) || 0;
   const p = Number(formEntretien.value.prix) || 0;
 
   if (km <= 0) {
-    alert('Veuillez saisir un kilométrage valide supérieur à 0.');
+    toast.warning('Veuillez saisir un kilométrage valide supérieur à 0.');
     return;
   }
 
   try {
-    const newRecord: RecordEntry = {
-      id: `rec-${generateId()}`,
-      collectionId: ENTRETIENS_COL_ID,
-      data: {
-        date: formEntretien.value.date,
-        vehicule: activeVehicle.value.data.nom,
-        type: formEntretien.value.type,
-        prix: p || null,
-        partenaire: formEntretien.value.partenaire.trim(),
-        kilometrage: km,
-        commentaire: formEntretien.value.commentaire.trim()
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
+    if (editingEntretien.value) {
+      // Edit Mode
+      await db.records.update(editingEntretien.value.id!, {
+        data: {
+          ...editingEntretien.value.data,
+          date: formEntretien.value.date,
+          type: formEntretien.value.type,
+          prix: p || null,
+          partenaire: formEntretien.value.partenaire.trim(),
+          kilometrage: km,
+          commentaire: formEntretien.value.commentaire.trim()
+        },
+        updatedAt: Date.now()
+      });
+      toast.success('Entretien mis à jour !');
+    } else {
+      // Add Mode
+      const newRecord: RecordEntry = {
+        id: `rec-${generateId()}`,
+        collectionId: ENTRETIENS_COL_ID,
+        data: {
+          date: formEntretien.value.date,
+          vehicule: activeVehicle.value.data.nom,
+          type: formEntretien.value.type,
+          prix: p || null,
+          partenaire: formEntretien.value.partenaire.trim(),
+          kilometrage: km,
+          commentaire: formEntretien.value.commentaire.trim()
+        },
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
 
-    await db.records.add(newRecord);
+      await db.records.add(newRecord);
+      toast.success('Entretien enregistré !');
+    }
+
     showAddModal.value = false;
+    editingEntretien.value = null;
     emit('data-updated');
     loadData();
-    alert('Entretien enregistré !');
   } catch (err) {
     console.error(err);
   }
@@ -266,7 +357,6 @@ const handleAddEntretien = async () => {
 
 // Delete record
 const handleDeleteEntretien = async (id: string) => {
-  if (!confirm('Supprimer cette fiche d\'entretien ?')) return;
   try {
     await db.records.update(id, {
       deletedAt: Date.now(),
@@ -284,8 +374,8 @@ const handleDeleteEntretien = async (id: string) => {
   <div class="entretien-view">
     <div class="view-header">
       <div>
-        <h2>🔧 Carnet d'Entretien</h2>
-        <p class="text-secondary">Enregistre tes révisions et vidanges pour anticiper les futurs entretiens et conserver un historique limpide.</p>
+        <h2>Carnet d'entretien</h2>
+        <p class="text-sub">Enregistre tes révisions et vidanges pour anticiper les futurs entretiens et conserver un historique limpide.</p>
       </div>
       <div class="view-actions" v-if="vehicles.filter(v => v.data.is_active !== false).length > 0">
         <button @click="openAddModal" class="btn btn-primary">
@@ -301,9 +391,9 @@ const handleDeleteEntretien = async (id: string) => {
           <label>VÉHICULE ACTIF</label>
           <select v-model="selectedVehicleId" class="select select-vehicle">
             <option v-if="vehicles.length === 0" value="">Aucun véhicule</option>
-            <option 
-              v-for="v in vehicles" 
-              :key="v.id" 
+            <option
+              v-for="v in vehicles"
+              :key="v.id"
               :value="v.id"
               :class="{ 'inactive-option': v.data.is_active === false }"
             >
@@ -312,10 +402,16 @@ const handleDeleteEntretien = async (id: string) => {
           </select>
         </div>
 
-        <!-- Current Mileage display -->
-        <div class="mileage-info-box" v-if="activeVehicle">
-          <span class="stat-label font-bold text-xs text-muted block uppercase">Odomètre actuel estimé</span>
-          <span class="stat-val text-primary font-black text-xl">{{ Math.round(currentMileage).toLocaleString('fr') }} km</span>
+        <!-- Current Mileage & Total Cost displays -->
+        <div class="summary-stats-row" v-if="activeVehicle">
+          <div class="mileage-info-box">
+            <span class="stat-label font-bold text-xs text-muted block">ODOMÈTRE ESTIMÉ</span>
+            <span class="stat-val font-black text-xl">{{ Math.round(currentMileage).toLocaleString('fr') }} km</span>
+          </div>
+          <div class="cost-info-box">
+            <span class="stat-label font-bold text-xs text-muted block">DÉPENSES ENTRETIEN</span>
+            <span class="stat-val font-black text-xl">{{ totalMaintenanceCost.toLocaleString('fr', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} €</span>
+          </div>
         </div>
       </div>
     </div>
@@ -324,15 +420,15 @@ const handleDeleteEntretien = async (id: string) => {
     <div v-if="vehicles.filter(v => v.data.is_active !== false).length === 0" class="card glass text-center py-4 text-muted">
       <ShieldAlert class="mx-auto mb-2 text-warning" :size="36" />
       <h3>Aucun véhicule actif</h3>
-      <p class="text-secondary text-sm mt-2">Saisis ton premier véhicule dans l'onglet **Garage (Options)** pour commencer à suivre tes entretiens.</p>
+      <p class="text-sub text-sm mt-2">Saisis ton premier véhicule dans l'onglet <strong>Paramètres</strong> pour commencer à suivre tes entretiens.</p>
     </div>
 
-    <div v-else class="entretien-dashboard-grid">
+    <div v-else class="entretien-dashboard-grid" :class="{ 'single-col': activeVehicle && activeVehicle.data.is_active === false }">
       <!-- Left Column: Predictive Maintenance Suggestions -->
-      <div class="predictive-col">
+      <div class="predictive-col" v-if="activeVehicle && activeVehicle.data.is_active !== false">
         <div class="card glass">
-          <h3 class="font-bold flex-row mb-4"><Sparkles :size="18" class="text-accent" /> Calendrier de Maintenance Préventive</h3>
-          <p class="text-secondary text-xs mb-4">Calculé dynamiquement selon tes limites recommandées de temps (mois) et d'usure (kilomètres parcourus depuis l'intervention).</p>
+          <h3 class="font-bold flex-row mb-4"><Sparkles :size="18" /> Calendrier de maintenance préventive</h3>
+          <p class="text-sub text-xs mb-4">Calculé dynamiquement selon tes limites recommandées de temps (mois) et d'usure (kilomètres parcourus depuis l'intervention).</p>
 
           <div v-if="isLoading" class="text-center py-4">
             <div class="mini-spinner"></div>
@@ -350,10 +446,12 @@ const handleDeleteEntretien = async (id: string) => {
                   <h4 class="font-bold text-sm">{{ sug.label }}</h4>
                   <p class="text-muted text-xs mt-0.5">{{ sug.desc }}</p>
                 </div>
-                <span class="badge font-bold" :class="sug.badgeClass">{{ sug.statusText }}</span>
+                <span class="badge font-bold sug-status-badge" :class="sug.badgeClass">
+                  <span class="badge-text">{{ sug.statusLabel }}</span>
+                </span>
               </div>
               
-              <div class="sug-details-box mt-3 text-sm text-secondary">
+              <div class="sug-details-box mt-3 text-sm text-sub">
                 {{ sug.detailText }}
               </div>
             </div>
@@ -364,7 +462,7 @@ const handleDeleteEntretien = async (id: string) => {
       <!-- Right Column: Timeline -->
       <div class="timeline-col">
         <div class="card glass">
-          <h3 class="font-bold flex-row mb-4"><Calendar :size="18" class="text-primary" /> Historique des Interventions</h3>
+          <h3 class="font-bold flex-row mb-4"><Calendar :size="18" /> Historique des interventions</h3>
           
           <div v-if="isLoading" class="text-center py-4">
             <div class="mini-spinner"></div>
@@ -383,23 +481,29 @@ const handleDeleteEntretien = async (id: string) => {
               
               <div class="timeline-content card glass">
                 <div class="timeline-header flex-row justify-between">
-                  <span class="type-pill badge badge-primary">{{ e.data.type }}</span>
-                  <span class="timeline-km font-bold text-accent text-sm">{{ e.data.kilometrage.toLocaleString('fr') }} km</span>
+                  <span class="badge badge-primary">{{ e.data.type }}</span>
+                  <span class="timeline-km font-bold text-sub text-sm">
+                    {{ (e.data.kilometrage !== undefined && e.data.kilometrage !== null) ? Number(e.data.kilometrage).toLocaleString('fr') : 'N/A' }} km
+                  </span>
                 </div>
 
                 <div class="timeline-body mt-2 text-sm">
                   <div class="flex-row text-muted text-xs justify-between mb-1">
-                    <span>Le {{ formatToFrenchDate(e.data.date) }}</span>
-                    <span v-if="e.data.partenaire">Garage : <strong>{{ e.data.partenaire }}</strong></span>
+                    <span>{{ formatToFrenchDate(e.data.date) }}</span>
+                    <span v-if="e.data.partenaire" class="ml-4"><strong>{{ e.data.partenaire }}</strong></span>
                   </div>
-                  <p class="text-secondary italic mt-1">{{ e.data.commentaire || 'Aucune note.' }}</p>
+                  <p class="text-primary font-bold mt-1" v-if="e.data.prix !== undefined && e.data.prix !== null">{{ Number(e.data.prix).toFixed(2) }} €</p>
                   
-                  <div class="flex-row justify-between border-top pt-2 mt-2" v-if="e.data.prix">
-                    <span class="text-warning font-bold">{{ e.data.prix }} €</span>
-                    <button @click="handleDeleteEntretien(e.id!)" class="delete-link text-xs">Supprimer</button>
-                  </div>
-                  <div class="flex-row justify-end border-top pt-2 mt-2" v-else>
-                    <button @click="handleDeleteEntretien(e.id!)" class="delete-link text-xs">Supprimer</button>
+                  <div class="flex-row justify-between border-top pt-2 mt-2">
+                    <span class="text-muted text-xs italic">{{ e.data.commentaire || 'Aucun commentaire.' }}</span>
+                    <div class="action-buttons flex-row gap-2">
+                      <button @click="openEditModal(e)" class="action-btn edit" title="Modifier">
+                        <Edit2 :size="14" />
+                      </button>
+                      <button @click="handleDeleteEntretien(e.id!)" class="action-btn delete" title="Supprimer">
+                        <Trash2 :size="14" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -413,8 +517,8 @@ const handleDeleteEntretien = async (id: string) => {
     <div v-if="showAddModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>🔧 Saisir une Intervention d'Entretien</h3>
-          <button @click="showAddModal = false" class="modal-close"><X :size="20" /></button>
+          <h3 class="flex-row align-center gap-1"><Wrench :size="18" /> {{ editingEntretien ? 'Modifier l\'intervention d\'entretien' : 'Saisir une intervention d\'entretien' }}</h3>
+          <button @click="closeModal" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
           <div class="form-group">
@@ -430,7 +534,7 @@ const handleDeleteEntretien = async (id: string) => {
               </select>
             </div>
             <div class="form-group">
-              <label>Kilométrage (Compteur - km) *</label>
+              <label>Kilométrage enregistré *</label>
               <input v-model="formEntretien.kilometrage" type="number" min="0" placeholder="Ex: 145000" class="input" />
             </div>
           </div>
@@ -447,14 +551,14 @@ const handleDeleteEntretien = async (id: string) => {
           </div>
 
           <div class="form-group mt-2">
-            <label>Commentaire / Détails des travaux</label>
+            <label>Commentaire</label>
             <textarea v-model="formEntretien.commentaire" rows="3" placeholder="Ex: Vidange filtre à huile et filtre à air, contrôle niveaux..." class="textarea"></textarea>
           </div>
         </div>
         <div class="modal-footer">
-          <button @click="showAddModal = false" class="btn btn-secondary">Annuler</button>
-          <button @click="handleAddEntretien" class="btn btn-primary" :disabled="!formEntretien.kilometrage">
-            Enregistrer l'entretien
+          <button @click="closeModal" class="btn btn-secondary">Annuler</button>
+          <button @click="handleSaveEntretien" class="btn btn-primary" :disabled="!formEntretien.kilometrage">
+            {{ editingEntretien ? 'Enregistrer les modifications' : 'Enregistrer l\'entretien' }}
           </button>
         </div>
       </div>
@@ -464,8 +568,8 @@ const handleDeleteEntretien = async (id: string) => {
 
 <style scoped lang="scss">
 .select-vehicle-card {
-  border-color: rgba(59, 130, 246, 0.15);
-  background-color: rgba(59, 130, 246, 0.01);
+  border-color: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  background-color: color-mix(in srgb, var(--color-primary) 1%, transparent);
 }
 
 .select-box-container {
@@ -477,8 +581,8 @@ const handleDeleteEntretien = async (id: string) => {
 
 .select-vehicle {
   font-weight: 800;
-  color: #60a5fa;
-  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
   
   &:focus {
     border-color: var(--color-primary);
@@ -490,7 +594,15 @@ const handleDeleteEntretien = async (id: string) => {
   text-decoration: line-through;
 }
 
-.mileage-info-box {
+.summary-stats-row {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.mileage-info-box,
+.cost-info-box {
   display: flex;
   flex-direction: column;
 }
@@ -500,6 +612,10 @@ const handleDeleteEntretien = async (id: string) => {
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
   align-items: start;
+  
+  &.single-col {
+    grid-template-columns: 1fr;
+  }
   
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
@@ -514,24 +630,24 @@ const handleDeleteEntretien = async (id: string) => {
 
 .suggestion-item-card {
   border: 1px solid var(--border-color);
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: color-mix(in srgb, var(--color-white) 2%, transparent);
   border-radius: var(--radius-sm);
   padding: 1rem;
   transition: var(--transition);
   
   &.overdue {
-    border-color: rgba(239, 68, 68, 0.2);
-    background-color: rgba(239, 68, 68, 0.02);
+    border-color: color-mix(in srgb, var(--color-danger) 20%, transparent);
+    background-color: color-mix(in srgb, var(--color-danger) 2%, transparent);
   }
   
   &.soon {
-    border-color: rgba(245, 158, 11, 0.2);
-    background-color: rgba(245, 158, 11, 0.02);
+    border-color: color-mix(in srgb, var(--color-warning) 20%, transparent);
+    background-color: color-mix(in srgb, var(--color-warning) 2%, transparent);
   }
 
   &.ok {
-    border-color: rgba(16, 185, 129, 0.2);
-    background-color: rgba(16, 185, 129, 0.01);
+    border-color: color-mix(in srgb, var(--color-success) 20%, transparent);
+    background-color: color-mix(in srgb, var(--color-success) 1%, transparent);
   }
 }
 
@@ -540,10 +656,41 @@ const handleDeleteEntretien = async (id: string) => {
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
+  
+  @media (max-width: 576px) {
+    align-items: center;
+  }
+}
+
+.sug-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+  
+  @media (max-width: 576px) {
+    padding: 0;
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    justify-content: center;
+    align-items: center;
+    
+    .badge-text {
+      display: none;
+    }
+    
+    .badge-emoji {
+      font-size: 0.85rem;
+      line-height: 1;
+      margin: 0;
+    }
+  }
 }
 
 .sug-details-box {
-  background-color: rgba(15, 23, 42, 0.4);
+  background-color: var(--bg-glass);
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
 }
@@ -626,4 +773,11 @@ const handleDeleteEntretien = async (id: string) => {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+.action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.text-xs { font-size: 0.75rem; }
 </style>

@@ -3,8 +3,10 @@ import { ref, onMounted, computed } from 'vue';
 import { db, generateId, type RecordEntry } from '../db/index';
 import { DECKS_COL_ID, CARDS_COL_ID, getDecksRecords, getCardsRecords } from '../db/queries';
 import { Plus, Trash2, Edit2, ShieldAlert, BookOpen } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
+const toast = useToast();
 
 const decks = ref<RecordEntry[]>([]);
 const cards = ref<RecordEntry[]>([]);
@@ -79,7 +81,7 @@ const handleAddDeck = async () => {
     selectedDeckId.value = newId;
     emit('data-updated');
     await loadData();
-    alert('Nouveau paquet de quiz créé !');
+    toast.success('Nouveau paquet de quiz créé !');
   } catch (err) {
     console.error(err);
   }
@@ -91,7 +93,6 @@ const handleDeleteDeck = async () => {
   const d = decks.value.find(deck => deck.id === selectedDeckId.value);
   if (!d) return;
 
-  if (!confirm(`Es-tu sûr de vouloir supprimer définitivement le paquet "${d.data.nom}" et TOUTES ses flashcards associées ?`)) return;
 
   try {
     // 1. Delete all cards in this deck
@@ -112,7 +113,7 @@ const handleDeleteDeck = async () => {
     selectedDeckId.value = '';
     emit('data-updated');
     await loadData();
-    alert('Paquet supprimé.');
+    toast.success('Paquet supprimé.');
   } catch (err) {
     console.error(err);
   }
@@ -131,7 +132,7 @@ const openAddCardModal = () => {
 // Add New Flashcard
 const handleAddCard = async () => {
   if (!formCard.value.question.trim() || !formCard.value.reponse.trim() || !selectedDeckId.value) {
-    alert('Veuillez renseigner à la fois la question et la réponse.');
+    toast.warning('Veuillez renseigner à la fois la question et la réponse.');
     return;
   }
 
@@ -156,7 +157,7 @@ const handleAddCard = async () => {
     showAddCardModal.value = false;
     emit('data-updated');
     await loadData();
-    alert('Flashcard ajoutée !');
+    toast.success('Flashcard ajoutée !');
   } catch (err) {
     console.error(err);
   }
@@ -196,7 +197,6 @@ const handleUpdateCard = async () => {
 
 // Delete Flashcard
 const handleDeleteCard = async (id: string) => {
-  if (!confirm('Supprimer cette flashcard ?')) return;
   try {
     await db.records.update(id, {
       deletedAt: Date.now(),
@@ -214,15 +214,15 @@ const handleDeleteCard = async (id: string) => {
   <div class="editor-view">
     <div class="view-header">
       <div>
-        <h2>✍️ Éditeur de Quiz</h2>
-        <p class="text-secondary">Crée de nouveaux paquets d'apprentissage, et ajoute ou modifie tes fiches de révision à la volée.</p>
+        <h2>Éditeur de quiz</h2>
+        <p class="text-sub">Crée de nouveaux paquets d'apprentissage, et ajoute ou modifie tes fiches de révision à la volée.</p>
       </div>
       <div class="view-actions">
-        <button @click="showAddDeckModal = true" class="btn btn-accent btn-sm">
-          <Plus :size="14" /> Nouveau Paquet
+        <button @click="showAddDeckModal = true" class="btn btn-secondary btn-sm">
+          <Plus :size="14" /> Nouveau paquet
         </button>
         <button @click="openAddCardModal" class="btn btn-primary btn-sm" :disabled="decks.length === 0">
-          <Plus :size="14" /> Nouvelle Carte
+          <Plus :size="14" /> Nouvelle carte
         </button>
       </div>
     </div>
@@ -255,14 +255,14 @@ const handleDeleteCard = async (id: string) => {
     <div v-if="decks.length === 0" class="card glass text-center py-4 text-muted">
       <ShieldAlert class="mx-auto mb-2 text-warning" :size="36" />
       <h3>Ludothèque de quiz vide</h3>
-      <p class="text-secondary text-sm mt-2">Commence par créer un paquet (catégorie) de cartes pour pouvoir saisir tes fiches mémo.</p>
+      <p class="text-sub text-sm mt-2">Commence par créer un paquet (catégorie) de cartes pour pouvoir saisir tes fiches mémo.</p>
     </div>
 
     <!-- Cards ledger table inside active deck -->
     <div v-else class="cards-table-container">
       <div class="card glass">
         <h3 class="font-bold flex-row mb-4">
-          <BookOpen :size="18" class="text-primary" /> Fiches mémo du paquet ({{ activeDeckCards.length }} cartes)
+          <BookOpen :size="18" /> Fiches mémo du paquet ({{ activeDeckCards.length }} cartes)
         </h3>
 
         <div v-if="isLoading" class="text-center py-4">
@@ -278,7 +278,7 @@ const handleDeleteCard = async (id: string) => {
           <div v-for="c in activeDeckCards" :key="c.id" class="card glass hoverable card-item-ledger flex-row justify-between gap-4">
             <div class="card-text-side">
               <p class="q-text font-black text-sm">Q : {{ c.data.question }}</p>
-              <p class="a-text text-xs text-secondary mt-1">R : {{ c.data.reponse }}</p>
+              <p class="a-text text-xs text-sub mt-1">R : {{ c.data.reponse }}</p>
             </div>
 
             <div class="card-meta-side flex-row gap-3">
@@ -286,10 +286,10 @@ const handleDeleteCard = async (id: string) => {
                 Boîte {{ c.data.box }}
               </span>
               
-              <button @click="openEditCardModal(c)" class="icon-btn" title="Modifier">
+              <button @click="openEditCardModal(c)" class="action-btn edit" title="Modifier">
                 <Edit2 :size="14" />
               </button>
-              <button @click="handleDeleteCard(c.id!)" class="icon-btn delete-btn" title="Supprimer">
+              <button @click="handleDeleteCard(c.id!)" class="action-btn delete" title="Supprimer">
                 <Trash2 :size="14" />
               </button>
             </div>
@@ -302,7 +302,7 @@ const handleDeleteCard = async (id: string) => {
     <div v-if="showAddDeckModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>➕ Nouveau Paquet de Cartes</h3>
+          <h3>➕ Nouveau paquet de cartes</h3>
           <button @click="showAddDeckModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
@@ -329,7 +329,7 @@ const handleDeleteCard = async (id: string) => {
     <div v-if="showAddCardModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>➕ Ajouter une Flashcard</h3>
+          <h3>➕ Ajouter une flashcard</h3>
           <button @click="showAddCardModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
@@ -340,12 +340,12 @@ const handleDeleteCard = async (id: string) => {
 
           <div class="form-group">
             <label>Réponse / Verso de la carte *</label>
-            <textarea v-model="formCard.reponse" rows="3" placeholder="Ex: H2O" class="textarea text-secondary"></textarea>
+            <textarea v-model="formCard.reponse" rows="3" placeholder="Ex: H2O" class="textarea text-sub"></textarea>
           </div>
 
           <div class="form-group mt-2">
             <label>Boîte Leitner initiale</label>
-            <select v-model="formCard.box" class="select font-bold text-accent">
+            <select v-model="formCard.box" class="select font-bold text-sub">
               <option :value="1">Boîte 1 (Révision quotidienne - Par défaut)</option>
               <option :value="2">Boîte 2 (Tous les 2 jours)</option>
               <option :value="3">Boîte 3 (Tous les 4 jours)</option>
@@ -378,12 +378,12 @@ const handleDeleteCard = async (id: string) => {
 
           <div class="form-group">
             <label>Réponse / Verso de la carte *</label>
-            <textarea v-model="formCard.reponse" rows="3" placeholder="Ex: H2O" class="textarea text-secondary"></textarea>
+            <textarea v-model="formCard.reponse" rows="3" placeholder="Ex: H2O" class="textarea text-sub"></textarea>
           </div>
 
           <div class="form-group mt-2">
             <label>Boîte Leitner actuelle</label>
-            <select v-model="formCard.box" class="select font-bold text-accent">
+            <select v-model="formCard.box" class="select font-bold text-sub">
               <option :value="1">Boîte 1 (Révision quotidienne)</option>
               <option :value="2">Boîte 2 (Tous les 2 jours)</option>
               <option :value="3">Boîte 3 (Tous les 4 jours)</option>
@@ -405,8 +405,8 @@ const handleDeleteCard = async (id: string) => {
 
 <style scoped lang="scss">
 .select-deck-card {
-  border-color: rgba(236, 72, 153, 0.2);
-  background-color: rgba(236, 72, 153, 0.01);
+  border-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  background-color: color-mix(in srgb, var(--color-primary) 1%, transparent);
 }
 
 .select-box-container {
@@ -418,7 +418,7 @@ const handleDeleteCard = async (id: string) => {
 
 .select-deck {
   color: var(--color-primary);
-  border-color: rgba(236, 72, 153, 0.25);
+  border-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
   
   &:focus {
     border-color: var(--color-primary);
@@ -433,7 +433,7 @@ const handleDeleteCard = async (id: string) => {
 
 .card-item-ledger {
   border: 1px solid var(--border-color);
-  background-color: rgba(255, 255, 255, 0.01);
+  background-color: color-mix(in srgb, var(--color-white) 1%, transparent);
   padding: 0.75rem 1rem !important;
   align-items: center;
 }
@@ -442,31 +442,11 @@ const handleDeleteCard = async (id: string) => {
   flex-grow: 1;
 }
 
-.badge-level-1 { background-color: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
-.badge-level-2 { background-color: rgba(249, 115, 22, 0.1); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.2); }
-.badge-level-3 { background-color: rgba(245, 158, 11, 0.1); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.2); }
-.badge-level-4 { background-color: rgba(132, 204, 22, 0.1); color: #a3e635; border: 1px solid rgba(132, 204, 22, 0.2); }
-.badge-level-5 { background-color: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }
-
-.icon-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  padding: 0.35rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: var(--transition);
-  
-  &:hover {
-    color: var(--text-primary);
-    background-color: var(--border-hover);
-  }
-  
-  &.delete-btn:hover {
-    color: var(--color-danger);
-    background-color: rgba(239, 68, 68, 0.1);
-  }
-}
+.badge-level-1 { background-color: color-mix(in srgb, var(--color-danger) 10%, transparent); color: var(--color-danger); border: 1px solid color-mix(in srgb, var(--color-danger) 20%, transparent); }
+.badge-level-2 { background-color: color-mix(in srgb, var(--color-warning) 10%, transparent); color: var(--color-warning); border: 1px solid color-mix(in srgb, var(--color-warning) 20%, transparent); }
+.badge-level-3 { background-color: color-mix(in srgb, var(--color-warning) 10%, transparent); color: var(--color-warning); border: 1px solid color-mix(in srgb, var(--color-warning) 20%, transparent); }
+.badge-level-4 { background-color: color-mix(in srgb, var(--color-success) 10%, transparent); color: var(--color-success); border: 1px solid color-mix(in srgb, var(--color-success) 20%, transparent); }
+.badge-level-5 { background-color: color-mix(in srgb, var(--color-success) 10%, transparent); color: var(--color-success); border: 1px solid color-mix(in srgb, var(--color-success) 20%, transparent); }
 
 .border-top {
   border-top: 1px solid var(--border-color);

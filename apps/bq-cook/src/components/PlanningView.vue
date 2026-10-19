@@ -2,12 +2,63 @@
 import { ref, onMounted } from 'vue';
 import { db, generateId, type RecordEntry } from '../db';
 import { PLANNING_COL_ID, getPlanningRecords, getRecipeRecords, getStockRecords, runStockAutomations, formatToFrenchDate } from '../db/queries';
-import { Plus, Trash2, Calendar, User, X, Play } from '@lucide/vue';
+import { Plus, Trash2, Calendar, User, X, Play, Edit2, AlertTriangle, Check } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
+
+const toast = useToast();
 
 const planningList = ref<RecordEntry[]>([]);
 const recipes = ref<RecordEntry[]>([]);
 const stockItems = ref<RecordEntry[]>([]);
 const showAddModal = ref(false);
+const editingPlanningId = ref<string | null>(null);
+
+interface MissingIngredient {
+  id: string;
+  nom: string;
+  disponible: number;
+  requis: number;
+  unite: string;
+}
+
+const getMissingIngredients = (rec: RecordEntry): MissingIngredient[] => {
+  if (rec.data.statut === 'Consommé' || rec.data.stock_decremente) {
+    return [];
+  }
+
+  const ingredients = rec.data.ingredients_consommes || [];
+  const convives = Number(rec.data.convives) || 1;
+  const missing: MissingIngredient[] = [];
+
+  for (const ingId of ingredients) {
+    const stockItem = stockItems.value.find(item => item.id === ingId);
+    if (stockItem) {
+      const currentStock = Number(stockItem.data.quantite) || 0;
+      const portionStd = Number(stockItem.data.quantite_standard_portion) || 1;
+      const requiredQty = convives * portionStd;
+
+      if (currentStock < requiredQty) {
+        missing.push({
+          id: ingId,
+          nom: stockItem.data.nom,
+          disponible: currentStock,
+          requis: requiredQty,
+          unite: stockItem.data.unite || 'unité'
+        });
+      }
+    } else {
+      missing.push({
+        id: ingId,
+        nom: 'Produit non répertorié',
+        disponible: 0,
+        requis: convives,
+        unite: 'unité'
+      });
+    }
+  }
+
+  return missing;
+};
 
 // Form States
 const formDate = ref(new Date().toISOString().split('T')[0]);
@@ -42,6 +93,7 @@ const onRepasChange = () => {
 };
 
 const openAddModal = () => {
+  editingPlanningId.value = null;
   formDate.value = new Date().toISOString().split('T')[0];
   formMoment.value = 'Midi';
   formRepasId.value = '';
@@ -51,32 +103,58 @@ const openAddModal = () => {
   showAddModal.value = true;
 };
 
+const openEditModal = (rec: RecordEntry) => {
+  editingPlanningId.value = rec.id || null;
+  formDate.value = rec.data.date || new Date().toISOString().split('T')[0];
+  formMoment.value = rec.data.moment || 'Midi';
+  formRepasId.value = rec.data.repas || '';
+  formConvives.value = Number(rec.data.convives) || 1;
+  formCommentaire.value = rec.data.commentaire || '';
+  formIngredients.value = [...(rec.data.ingredients_consommes || [])];
+  showAddModal.value = true;
+};
+
 const handleSavePlanning = async () => {
   if (!formRepasId.value) {
-    alert('Le choix du repas est obligatoire.');
+    toast.warning('Le choix du repas est obligatoire.');
     return;
   }
 
   try {
-    const record: RecordEntry = {
-      id: `rec-${generateId()}`,
-      collectionId: PLANNING_COL_ID,
-      data: {
-        date: formDate.value,
-        moment: formMoment.value,
-        repas: formRepasId.value,
-        convives: formConvives.value || 1,
-        ingredients_consommes: formIngredients.value,
-        statut: 'Prévu',
-        stock_decremente: false,
-        commentaire: formCommentaire.value.trim()
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
+    if (editingPlanningId.value) {
+      await db.records.update(editingPlanningId.value, {
+        'data.date': formDate.value,
+        'data.moment': formMoment.value,
+        'data.repas': formRepasId.value,
+        'data.convives': formConvives.value || 1,
+        'data.ingredients_consommes': [...formIngredients.value],
+        'data.commentaire': formCommentaire.value.trim(),
+        updatedAt: Date.now()
+      });
+      toast.success('Repas modifié avec succès !');
+    } else {
+      const record: RecordEntry = {
+        id: `rec-${generateId()}`,
+        collectionId: PLANNING_COL_ID,
+        data: {
+          date: formDate.value,
+          moment: formMoment.value,
+          repas: formRepasId.value,
+          convives: formConvives.value || 1,
+          ingredients_consommes: [...formIngredients.value],
+          statut: 'Prévu',
+          stock_decremente: false,
+          commentaire: formCommentaire.value.trim()
+        },
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await db.records.add(record);
+      toast.success('Repas planifié avec succès !');
+    }
 
-    await db.records.add(record);
     showAddModal.value = false;
+    editingPlanningId.value = null;
     await loadData();
   } catch (err) {
     console.error('Erreur lors de la planification du repas:', err);
@@ -84,14 +162,12 @@ const handleSavePlanning = async () => {
 };
 
 const handleDeletePlanning = async (id: string) => {
-  if (confirm('Es-tu sûr de vouloir retirer ce repas du planning ?')) {
     try {
       await db.records.update(id, { deletedAt: Date.now(), updatedAt: Date.now() });
       await loadData();
     } catch (err) {
       console.error('Erreur lors de la suppression:', err);
     }
-  }
 };
 
 const handleMarkAsConsumed = async (rec: RecordEntry) => {
@@ -109,7 +185,7 @@ const handleMarkAsConsumed = async (rec: RecordEntry) => {
     }
     
     await loadData();
-    alert('Repas consommé ! Les stocks correspondants ont été déduits.');
+    toast.success('Repas consommé ! Les stocks correspondants ont été déduits.');
   } catch (err) {
     console.error('Erreur lors du décompte de stock:', err);
   }
@@ -150,7 +226,7 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
   <div class="planning-view">
     <div class="view-header-row">
       <div class="title-sub">
-        <h2>Mon Planning de Repas</h2>
+        <h2>Planning de repas</h2>
         <p class="desc">Planifie tes repas et suis la faisabilité de tes stocks</p>
       </div>
       <button @click="openAddModal" class="btn btn-primary btn-sm">
@@ -189,30 +265,54 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
 
           <!-- Feasibility Badge -->
           <div class="feasibility-section">
-            <span v-if="getMealFeasibility(rec) === 'disponible'" class="feasibility-badge true">
-              🟢 Stock Suffisant
-            </span>
-            <span v-else-if="getMealFeasibility(rec) === 'partiel'" class="feasibility-badge warning">
-              🟡 Stock Partiel
-            </span>
-            <span v-else-if="getMealFeasibility(rec) === 'rupture'" class="feasibility-badge false">
-              🔴 Ingrédients Manquants
+            <span v-if="getMealFeasibility(rec) === 'disponible'" class="feasibility-badge true flex-row align-center gap-1">
+              <Check :size="12" /> Stock Suffisant
             </span>
           </div>
 
           <!-- Actions -->
-          <div class="planning-actions">
+          <div class="planning-actions flex-row align-center gap-1">
             <button 
               v-if="rec.data.statut === 'Prévu'" 
               @click="handleMarkAsConsumed(rec)" 
-              class="btn btn-accent btn-xs"
+              class="btn btn-secondary btn-xs flex-row align-center gap-1"
               title="Marquer comme consommé et déduire du stock"
             >
-              <Play class="btn-icon-xs" /> Consommer
+              <Play :size="12" /> Consommer
             </button>
-            <button @click="handleDeletePlanning(rec.id!)" class="btn btn-danger-link btn-xs" title="Supprimer">
-              <Trash2 class="trash-icon" /> Supprimer
+            <button 
+              v-if="rec.data.statut === 'Prévu'" 
+              @click="openEditModal(rec)" 
+              class="action-btn edit"
+              title="Modifier le repas"
+            >
+              <Edit2 :size="14" />
             </button>
+            <button 
+              @click="handleDeletePlanning(rec.id!)" 
+              class="action-btn delete" 
+              title="Supprimer du planning"
+            >
+              <Trash2 :size="14" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Missing Ingredients Alert List -->
+        <div v-if="getMissingIngredients(rec).length > 0" class="missing-ingredients-box mt-3 border-top pt-2">
+          <div class="flex-row align-center gap-2 mb-1">
+            <span class="text-xs font-bold text-danger flex-row align-center gap-1">
+              <AlertTriangle :size="13" /> Ingrédients manquants en stock :
+            </span>
+          </div>
+          <div class="missing-chips-flex">
+            <span 
+              v-for="ing in getMissingIngredients(rec)" 
+              :key="ing.id" 
+              class="missing-ingredient-chip"
+            >
+              <strong>{{ ing.nom }}</strong> (Dispo: {{ ing.disponible }} / Requis: {{ ing.requis }} {{ ing.unite }})
+            </span>
           </div>
         </div>
       </div>
@@ -224,7 +324,7 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
         <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
           <div class="modal-card card glass fade-in">
             <div class="modal-header">
-              <h2>Planifier un Repas</h2>
+              <h2>{{ editingPlanningId ? 'Modifier le repas' : 'Planifier un repas' }}</h2>
               <button @click="showAddModal = false" class="btn-close-modal"><X /></button>
             </div>
             <div class="modal-body text-left">
@@ -253,7 +353,7 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
                     </option>
                   </select>
                 </div>
-                <div class="form-group flex-1 ml-3" style="max-width: 130px;">
+                <div class="form-group flex-1 ml-3 col-convives">
                   <label for="planConvives">Convives</label>
                   <input id="planConvives" v-model.number="formConvives" type="number" class="form-control" min="1" />
                 </div>
@@ -269,7 +369,7 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
                     <span class="checkmark"></span>
                     <span class="label-text">
                       {{ item.data.nom }} 
-                      <span class="text-secondary" style="font-size: 0.8rem;">
+                      <span class="text-sub text-xs">
                         (Reste : {{ item.data.quantite || 0 }} {{ item.data.unite || 'unité' }})
                       </span>
                     </span>
@@ -278,13 +378,15 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
               </div>
 
               <div class="form-group mt-3">
-                <label for="planComment">Commentaire / Note</label>
+                <label for="planComment">Commentaire</label>
                 <input id="planComment" v-model="formCommentaire" type="text" class="form-control" placeholder="Ex: Anniversaire, repas léger, etc." />
               </div>
             </div>
             <div class="modal-footer">
               <button @click="showAddModal = false" class="btn btn-secondary">Annuler</button>
-              <button @click="handleSavePlanning" class="btn btn-primary">Ajouter au planning</button>
+              <button @click="handleSavePlanning" class="btn btn-primary">
+                {{ editingPlanningId ? 'Enregistrer les modifications' : 'Ajouter au planning' }}
+              </button>
             </div>
           </div>
         </div>
@@ -312,9 +414,9 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
 
 .planning-card-header {
   display: grid;
-  grid-template-columns: 140px 1fr 180px 180px;
+  grid-template-columns: 130px 1fr auto auto;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.25rem;
   text-align: left;
 }
 
@@ -339,21 +441,21 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
     border: 1px solid transparent;
     
     &.midi {
-      background-color: rgba(245, 158, 11, 0.15);
-      color: #f59e0b;
-      border-color: #f59e0b;
+      background-color: color-mix(in srgb, var(--color-warning) 15%, transparent);
+      color: var(--color-warning);
+      border-color: color-mix(in srgb, var(--color-warning) 20%, transparent);
     }
     
     &.soir {
-      background-color: rgba(59, 130, 246, 0.15);
-      color: #3b82f6;
-      border-color: #3b82f6;
+      background-color: color-mix(in srgb, var(--color-info) 15%, transparent);
+      color: var(--color-info);
+      border-color: color-mix(in srgb, var(--color-info) 20%, transparent);
     }
     
     &.autre {
-      background-color: rgba(139, 92, 246, 0.15);
-      color: #8b5cf6;
-      border-color: #8b5cf6;
+      background-color: color-mix(in srgb, var(--color-purple) 15%, transparent);
+      color: var(--color-purple);
+      border-color: color-mix(in srgb, var(--color-purple) 20%, transparent);
     }
   }
 }
@@ -383,7 +485,7 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
   align-items: center;
   gap: 0.75rem;
   font-size: 0.85rem;
-  color: var(--text-secondary);
+  color: var(--text-sub);
   
   .meta-icon {
     width: 14px;
@@ -395,15 +497,15 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
     font-weight: 700;
     
     &.prévu {
-      color: #94a3b8;
+      color: var(--text-sub);
     }
     
     &.consommé {
-      color: #10b981;
+      color: var(--color-success);
     }
     
     &.préparé {
-      color: #3b82f6;
+      color: var(--color-info);
     }
   }
 }
@@ -421,22 +523,26 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
   border: 1px solid transparent;
   
   &.true {
-    background-color: rgba(16, 185, 129, 0.15);
-    color: #10b981;
-    border-color: #10b981;
+    background-color: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+    border-color: color-mix(in srgb, var(--color-success) 20%, transparent);
   }
   
   &.warning {
-    background-color: rgba(245, 158, 11, 0.15);
-    color: #f59e0b;
-    border-color: #f59e0b;
+    background-color: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+    border-color: color-mix(in srgb, var(--color-warning) 20%, transparent);
   }
   
   &.false {
-    background-color: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
-    border-color: #ef4444;
+    background-color: color-mix(in srgb, var(--color-danger) 15%, transparent);
+    color: var(--color-danger);
+    border-color: color-mix(in srgb, var(--color-danger) 20%, transparent);
   }
+}
+
+.col-convives {
+  max-width: 130px;
 }
 
 .planning-actions {
@@ -448,7 +554,7 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
 .ingredients-selection-list {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background-color: rgba(0, 0, 0, 0.15);
+  background-color: color-mix(in srgb, var(--color-black) 15%, transparent);
   max-height: 200px;
   overflow-y: auto;
   padding: 0.5rem;
@@ -472,13 +578,37 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
   
   &:hover {
     color: var(--color-danger);
-    background-color: rgba(239, 68, 68, 0.1);
+    background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
   }
   
   .trash-icon {
     width: 13px;
     height: 13px;
   }
+}
+
+.missing-ingredients-box {
+  background-color: color-mix(in srgb, var(--color-danger) 4%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.85rem;
+}
+
+.missing-chips-flex {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.missing-ingredient-chip {
+  font-size: 0.75rem;
+  background-color: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
+  color: var(--color-danger);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .form-row {

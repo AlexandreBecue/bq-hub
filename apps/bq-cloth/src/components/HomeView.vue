@@ -6,16 +6,21 @@ import {
   getClothesRecords, 
   getTenuesRecords, 
   getTenuesTypesRecords,
+  getContextsRecords,
   formatToFrenchDate
 } from '../db/queries';
-import { CloudSun, Calendar, RefreshCw, Check, AlertTriangle, Play, Sparkles, Thermometer } from '@lucide/vue';
+import { CloudSun, Calendar, RefreshCw, Check, AlertTriangle, Play, Sparkles, Thermometer, Sun, CloudFog, CloudDrizzle, CloudRain, Snowflake, CloudLightning, Cloud } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
+const toast = useToast();
 
 const clothes = ref<RecordEntry[]>([]);
 const tenues = ref<RecordEntry[]>([]);
 const tenuesTypes = ref<RecordEntry[]>([]);
+const customContexts = ref<RecordEntry[]>([]);
 const isLoading = ref(true);
+const isAppEmpty = ref(false);
 
 // Weather State
 const currentCity = ref(localStorage.getItem('bq-cloth-city') || 'Paris');
@@ -24,8 +29,14 @@ const weatherLoading = ref(false);
 const weatherError = ref('');
 
 // Context State
-const contexts = ["Bureau", "Télétravail", "Sport", "Escalade", "Sortie", "Détente"];
+const contexts = computed(() => customContexts.value.map(c => String(c.data.nom || '')));
 const selectedContext = ref(localStorage.getItem('bq-cloth-active-context') || 'Bureau');
+
+watch(contexts, (newCtxs) => {
+  if (newCtxs.length > 0 && !newCtxs.includes(selectedContext.value)) {
+    selectedContext.value = newCtxs[0];
+  }
+});
 
 // Form/Selection State for Outfit Composition
 const selectedGarments = ref<string[]>([]);
@@ -53,6 +64,8 @@ const loadData = async () => {
     clothes.value = await getClothesRecords();
     tenues.value = await getTenuesRecords();
     tenuesTypes.value = await getTenuesTypesRecords();
+    customContexts.value = await getContextsRecords();
+    isAppEmpty.value = clothes.value.length === 0 && customContexts.value.length === 0;
   } catch (err) {
     console.error(err);
   } finally {
@@ -144,14 +157,14 @@ const availableClothesByCategory = computed(() => {
 
 // Weather interpretation code
 const getWeatherDetails = (code: number) => {
-  if (code === 0) return { desc: 'Ensoleillé', emoji: '☀️' };
-  if ([1, 2, 3].includes(code)) return { desc: 'Éclaircies', emoji: '🌤️' };
-  if ([45, 48].includes(code)) return { desc: 'Brouillard', emoji: '🌫️' };
-  if ([51, 53, 55, 56, 57].includes(code)) return { desc: 'Bruine', emoji: '🌧️' };
-  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return { desc: 'Pluie', emoji: '🌧️🌧️' };
-  if ([71, 73, 75, 77, 85, 86].includes(code)) return { desc: 'Neige', emoji: '❄️' };
-  if ([95, 96, 99].includes(code)) return { desc: 'Orage', emoji: '⛈️' };
-  return { desc: 'Nuageux', emoji: '☁️' };
+  if (code === 0) return { desc: 'Ensoleillé', icon: Sun };
+  if ([1, 2, 3].includes(code)) return { desc: 'Éclaircies', icon: CloudSun };
+  if ([45, 48].includes(code)) return { desc: 'Brouillard', icon: CloudFog };
+  if ([51, 53, 55, 56, 57].includes(code)) return { desc: 'Bruine', icon: CloudDrizzle };
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return { desc: 'Pluie', icon: CloudRain };
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return { desc: 'Neige', icon: Snowflake };
+  if ([95, 96, 99].includes(code)) return { desc: 'Orage', icon: CloudLightning };
+  return { desc: 'Nuageux', icon: Cloud };
 };
 
 // Get the latest worn outfits in the current context (to prevent recent repeats)
@@ -317,7 +330,7 @@ const confirmWearOutfit = async () => {
     showPorterConfirmModal.value = false;
     emit('data-updated');
     await loadData();
-    alert('Tenue du jour enregistrée !');
+    toast.success('Tenue du jour enregistrée !');
   } catch (err) {
     console.error(err);
   }
@@ -326,6 +339,20 @@ const confirmWearOutfit = async () => {
 
 <template>
   <div class="home-view">
+    <!-- Demo Data Banner -->
+    <div v-if="isAppEmpty" class="card glass demo-banner mb-4">
+      <div class="flex-row align-center justify-between flex-wrap gap-4 w-100">
+        <div class="demo-banner-text-content">
+          <h3 class="font-bold text-lg mb-1 demo-banner-title">
+            ✨ Bienvenue sur bq-cloth !
+          </h3>
+          <p class="text-sub text-sm demo-banner-desc">
+            Il semblerait que vous n'ayez pas encore de données (vêtements, tenues, ou contextes). Rendez-vous dans l'onglet <strong>Paramètres</strong> pour générer un jeu de données de test et explorer l'application !
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- Top Dashboard Header with Weather and Context Selection -->
     <div class="dashboard-grid mb-4">
       <!-- Weather Widget Card -->
@@ -347,9 +374,9 @@ const confirmWearOutfit = async () => {
           <p>{{ weatherError }}</p>
         </div>
         <div v-else-if="weatherData" class="weather-body">
-          <div class="temp-row">
+          <div class="temp-row flex-row align-center gap-2">
             <span class="temp-val">{{ Math.round(weatherData.temperature_2m) }}°C</span>
-            <span class="weather-emoji">{{ getWeatherDetails(weatherData.weather_code).emoji }}</span>
+            <component :is="getWeatherDetails(weatherData.weather_code).icon" :size="24" class="weather-icon text-primary" />
           </div>
           <div class="weather-sub">
             <span>{{ getWeatherDetails(weatherData.weather_code).desc }}</span>
@@ -365,10 +392,10 @@ const confirmWearOutfit = async () => {
       <!-- Context Selection Card -->
       <div class="card glass context-card">
         <div class="flex-row mb-2">
-          <Calendar class="text-purple" :size="20" />
-          <h3 class="font-bold">Mon Contexte du Jour</h3>
+          <Calendar :size="20" />
+          <h3 class="font-bold">Contexte du jour</h3>
         </div>
-        <p class="text-secondary text-xs mb-2">Sélectionne ton activité pour adapter les suggestions de tenues.</p>
+        <p class="text-sub text-xs mb-2">Sélectionne ton activité pour adapter les suggestions de tenues.</p>
         <div class="contexts-grid">
           <button 
             v-for="ctx in contexts" 
@@ -387,16 +414,16 @@ const confirmWearOutfit = async () => {
     <div class="suggestion-area mb-4">
       <div class="card glass">
         <div class="flex-row mb-2">
-          <Sparkles class="text-accent" :size="18" />
-          <h3 class="font-bold">Suggestions de Tenues Types</h3>
+          <Sparkles class="text-primary" :size="18" />
+          <h3 class="font-bold">Suggestions de tenues types</h3>
         </div>
-        <p class="text-secondary text-xs mb-4">Tenues recommandées pour aujourd'hui (basées sur la météo, le contexte, et l'exclusion des vêtements déjà portés récemment).</p>
+        <p class="text-sub text-xs mb-4">Tenues recommandées pour aujourd'hui (basées sur la météo, le contexte, et l'exclusion des vêtements déjà portés récemment).</p>
 
         <div v-if="isLoading" class="text-center py-4">
           <div class="mini-spinner"></div>
         </div>
         <div v-else-if="suggestedOutfits.length === 0" class="text-muted text-center py-4">
-          <p>Aucune suggestion disponible. Crée des "Tenues Types" dans les Préférences ou ajoute des vêtements propres pour voir des suggestions.</p>
+          <p>Aucune suggestion disponible. Crée des tenues types dans les préférences ou vérifie la disponibilité de tes vêtements pour voir des suggestions.</p>
         </div>
         <div v-else class="suggestions-list">
           <div 
@@ -413,7 +440,7 @@ const confirmWearOutfit = async () => {
                 </span>
                 <span v-else class="badge badge-success text-xs ml-2">Recommandé</span>
               </div>
-              <div class="sug-garments text-secondary mt-1">
+              <div class="sug-garments text-sub mt-1">
                 {{ sug.garmentNames.join(' + ') }}
               </div>
               <div class="sug-meta mt-1 text-xs text-muted flex-row">
@@ -421,7 +448,7 @@ const confirmWearOutfit = async () => {
                 <span v-if="sug.contexte" class="ml-2">• Contexte : {{ sug.contexte }}</span>
               </div>
             </div>
-            <button @click="applySuggestion(sug.garmentIds)" class="btn btn-purple btn-sm">
+            <button @click="applySuggestion(sug.garmentIds)" class="btn btn-primary btn-sm">
               <Play :size="12" /> Choisir
             </button>
           </div>
@@ -432,10 +459,10 @@ const confirmWearOutfit = async () => {
     <!-- Outfit Composer / Smart Selector -->
     <div class="card glass composer-card">
       <div class="composer-header">
-        <h3 class="font-bold">Composer ma Tenue du Jour</h3>
+        <h3 class="font-bold">Composer ma tenue du jour</h3>
         <div class="selected-summary flex-row" v-if="selectedGarments.length > 0">
           <span class="badge badge-primary">{{ selectedGarments.length }} pièces sélectionnées</span>
-          <button @click="openPorterModal" class="btn btn-accent btn-sm">
+          <button @click="openPorterModal" class="btn btn-secondary btn-sm">
             Porter cette tenue <Check :size="14" />
           </button>
         </div>
@@ -446,8 +473,8 @@ const confirmWearOutfit = async () => {
           <div class="mini-spinner"></div>
         </div>
         <div v-else-if="clothes.filter(c => c.data.is_available !== false).length === 0" class="text-center py-4 text-muted">
-          <p>Tous tes vêtements sont marqués comme indisponibles / linge sale !</p>
-          <p class="text-xs mt-2">Pense à enregistrer une Lessive ou à re-déclarer tes vêtements disponibles dans ton Dressing.</p>
+          <p>Tous tes vêtements sont indisponibles.</p>
+          <p class="text-xs mt-2">Pense à faire une lessive ou à re-déclarer tes vêtements disponibles.</p>
         </div>
         <div v-else class="composer-category-columns">
           <div 
@@ -459,7 +486,7 @@ const confirmWearOutfit = async () => {
             <div class="category-header">
               <h4>{{ category }}</h4>
               <span v-if="isCategoryActive(category)" class="completed-check" :title="getActiveItemNameForCategory(category)">
-                <Check :size="14" class="text-accent-icon" />
+                <Check :size="14" class="text-sub-icon" />
               </span>
             </div>
 
@@ -491,7 +518,7 @@ const confirmWearOutfit = async () => {
     <div v-if="showPorterConfirmModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>Confirmé : Porter cette tenue</h3>
+          <h3>Tenue du jour</h3>
           <button @click="showPorterConfirmModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
@@ -510,8 +537,8 @@ const confirmWearOutfit = async () => {
           <div class="summary-box card glass mt-4">
             <h4 class="font-bold mb-2">Vêtements portés :</h4>
             <ul>
-              <li v-for="selId in selectedGarments" :key="selId" class="text-secondary text-sm">
-                • {{ clothes.find(c => c.id === selId)?.data.nom }}
+              <li v-for="selId in selectedGarments" :key="selId" class="text-sub text-sm ml-4">
+                {{ clothes.find(c => c.id === selId)?.data.nom }}
               </li>
             </ul>
           </div>
@@ -522,14 +549,14 @@ const confirmWearOutfit = async () => {
                 <input type="checkbox" v-model="putInLaundryBasket" />
                 <span class="slider"></span>
               </label>
-              <span class="text-secondary font-bold text-sm">Déposer directement ces habits au linge sale</span>
+              <span class="text-sub font-bold text-sm">Déposer directement ces habits au linge sale</span>
             </div>
             <p class="text-xs text-muted mt-1 ml-10">(Les marquera comme indisponibles dans l'armoire immédiatement)</p>
           </div>
         </div>
         <div class="modal-footer">
           <button @click="showPorterConfirmModal = false" class="btn btn-secondary">Annuler</button>
-          <button @click="confirmWearOutfit" class="btn btn-accent">Confirmer & Porter</button>
+          <button @click="confirmWearOutfit" class="btn btn-secondary">Confirmer & porter</button>
         </div>
       </div>
     </div>
@@ -537,6 +564,31 @@ const confirmWearOutfit = async () => {
 </template>
 
 <style scoped lang="scss">
+.demo-banner {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 15%, transparent) 0%, color-mix(in srgb, var(--color-neutral) 20%, transparent) 100%);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  padding: 1.5rem;
+}
+
+.demo-banner-text-content {
+  flex: 1;
+  min-width: 250px;
+}
+
+.demo-banner-title {
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.demo-banner-desc {
+  margin: 0;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--text-primary) 80%, transparent);
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -593,7 +645,7 @@ const confirmWearOutfit = async () => {
 
 .weather-sub {
   font-size: 0.75rem;
-  color: var(--text-secondary);
+  color: var(--text-sub);
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -610,9 +662,9 @@ const confirmWearOutfit = async () => {
 }
 
 .ctx-btn {
-  background-color: rgba(15, 23, 42, 0.4);
+  background-color: var(--bg-glass);
   border: 1px solid var(--border-color);
-  color: var(--text-secondary);
+  color: var(--text-sub);
   font-size: 0.75rem;
   font-weight: 700;
   padding: 0.45rem 0.25rem;
@@ -626,10 +678,10 @@ const confirmWearOutfit = async () => {
   }
   
   &.active {
-    background-color: var(--color-purple);
-    border-color: var(--color-purple);
-    color: #ffffff;
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-primary-contrast);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--color-primary) 30%, transparent);
   }
 }
 
@@ -643,7 +695,7 @@ const confirmWearOutfit = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: color-mix(in srgb, var(--color-white) 2%, transparent);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 0.75rem 1rem;
@@ -651,12 +703,12 @@ const confirmWearOutfit = async () => {
   
   &:hover {
     border-color: var(--border-hover);
-    background-color: rgba(255, 255, 255, 0.04);
+    background-color: color-mix(in srgb, var(--color-white) 4%, transparent);
   }
   
   &.recently-worn-item {
-    border-color: rgba(245, 158, 11, 0.15);
-    background-color: rgba(245, 158, 11, 0.01);
+    border-color: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    background-color: color-mix(in srgb, var(--color-warning) 1%, transparent);
   }
 }
 
@@ -691,15 +743,15 @@ const confirmWearOutfit = async () => {
 }
 
 .composer-col {
-  background-color: rgba(15, 23, 42, 0.3);
+  background-color: color-mix(in srgb, var(--color-black) 30%, transparent);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 0.75rem;
   transition: var(--transition);
   
   &.category-completed {
-    border-color: rgba(16, 185, 129, 0.3);
-    background-color: rgba(16, 185, 129, 0.01);
+    border-color: color-mix(in srgb, var(--color-success) 30%, transparent);
+    background-color: color-mix(in srgb, var(--color-success) 1%, transparent);
   }
 }
 
@@ -714,13 +766,13 @@ const confirmWearOutfit = async () => {
   h4 {
     font-size: 0.85rem;
     font-weight: 800;
-    color: var(--text-secondary);
+    color: var(--text-sub);
     text-transform: uppercase;
     letter-spacing: 0.025em;
   }
 }
 
-.text-accent-icon {
+.text-sub-icon {
   color: var(--color-accent);
 }
 
@@ -734,7 +786,7 @@ const confirmWearOutfit = async () => {
 }
 
 .composer-item {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: color-mix(in srgb, var(--color-white) 2%, transparent);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.65rem;
@@ -752,7 +804,7 @@ const confirmWearOutfit = async () => {
     color: #ffffff;
     
     .item-desc {
-      color: rgba(255, 255, 255, 0.7);
+      color: color-mix(in srgb, var(--color-white) 70%, transparent);
     }
   }
   
@@ -795,7 +847,7 @@ const confirmWearOutfit = async () => {
 .ml-2 { margin-left: 0.5rem; }
 
 .summary-box {
-  background-color: rgba(15, 23, 42, 0.4);
+  background-color: var(--bg-glass);
   padding: 1rem;
 }
 

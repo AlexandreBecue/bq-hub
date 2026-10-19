@@ -1,29 +1,23 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { db, importDatabase, exportDatabase, generateId, type RecordEntry } from '../db/index';
+import { ref, onMounted, computed, watch } from 'vue';
+import { db, generateId, type RecordEntry } from '../db/index';
 import { 
   TENUES_TYPES_COL_ID,
+  CONTEXTS_COL_ID,
   getClothesRecords,
-  getTenuesTypesRecords
+  getTenuesTypesRecords,
+  getContextsRecords,
+  generateDemoData
 } from '../db/queries';
+import { syncEngine } from '../db/google-drive';
+import BaseSettings from '@bq/theme/BaseSettings.vue';
 import { 
-  isDriveConnected, 
-  lastSyncTime, 
-  syncStatusMsg, 
-  isSyncing, 
-  loadGoogleScript, 
-  initializeGisClient, 
-  connectGoogleDrive, 
-  disconnectGoogleDrive, 
-  checkSavedConnectionState, 
-  triggerGoogleDriveSync 
-} from '../db/google-drive';
-import { 
-  Download, Upload, Trash2, Check, AlertTriangle, FileJson, 
-  Cloud, RefreshCw, LogOut, Plus, Sparkles, X, Settings, Thermometer, Tag 
+  Plus, Sparkles, X, Settings, Thermometer, Tag, Trash2, Check 
 } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
+const toast = useToast();
 
 // Config State
 const currentCity = ref(localStorage.getItem('bq-cloth-city') || 'Paris');
@@ -32,10 +26,6 @@ const dryingDelay = ref(Number(localStorage.getItem('bq-cloth-drying-delay') || 
 // Database State
 const clothes = ref<RecordEntry[]>([]);
 const tenuesTypes = ref<RecordEntry[]>([]);
-const isImporting = ref(false);
-const statusMessage = ref('');
-const isError = ref(false);
-const showConfirmClear = ref(false);
 const isDbEmpty = ref(true);
 
 // Tenue Type Modal Form State
@@ -47,8 +37,17 @@ const formTenueType = ref({
   vetements_associes: [] as string[]
 });
 
-const contexts = ["Bureau", "Télétravail", "Sport", "Escalade", "Sortie", "Détente"];
-const citiesList = ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Bordeaux', 'Nantes', 'Strasbourg', 'Lille', 'Nice', 'Montpellier'];
+const contexts = computed(() => customContexts.value.map(c => String(c.data.nom || '')));
+const customContexts = ref<RecordEntry[]>([]);
+const newContextName = ref('');
+
+const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+watch(contexts, (newCtxs) => {
+  if (newCtxs.length > 0 && !newCtxs.includes(formTenueType.value.contexte)) {
+    formTenueType.value.contexte = newCtxs[0];
+  }
+});
 
 const checkDbStatus = async () => {
   const count = await db.records.count();
@@ -59,47 +58,41 @@ const loadClothesAndTenuesTypes = async () => {
   try {
     clothes.value = await getClothesRecords();
     tenuesTypes.value = await getTenuesTypesRecords();
+    customContexts.value = await getContextsRecords();
   } catch (err) {
     console.error(err);
   }
 };
 
-onMounted(async () => {
-  checkSavedConnectionState();
+const handleDataUpdated = async () => {
   await checkDbStatus();
   await loadClothesAndTenuesTypes();
+  emit('data-updated');
+};
 
-  try {
-    await loadGoogleScript();
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '653086696352-sr6n7etmnkd49j1kao8osvgqc0f042hl.apps.googleusercontent.com';
-    initializeGisClient(clientId, async (token) => {
-      const success = await triggerGoogleDriveSync(token);
-      if (success) {
-        emit('data-updated');
-        await checkDbStatus();
-        await loadClothesAndTenuesTypes();
-      }
-    });
-  } catch (err) {
-    console.warn("Script Google Drive indisponible.");
-  }
+const handleClearDatabaseLocal = async () => {
+  await checkDbStatus();
+  await loadClothesAndTenuesTypes();
+  emit('data-updated');
+};
+
+const handleGenerateDemo = async () => {
+  await generateDemoData();
+  await checkDbStatus();
+  emit('data-updated');
+};
+
+onMounted(async () => {
+  await checkDbStatus();
+  await loadClothesAndTenuesTypes();
 });
 
 // Save general preferences
 const savePreferences = () => {
   localStorage.setItem('bq-cloth-city', currentCity.value);
   localStorage.setItem('bq-cloth-drying-delay', String(dryingDelay.value));
-  alert('Préférences enregistrées avec succès !');
+  toast.success('Préférences enregistrées avec succès !');
   emit('data-updated');
-};
-
-const handleSyncNow = async () => {
-  const success = await triggerGoogleDriveSync();
-  if (success) {
-    emit('data-updated');
-    await checkDbStatus();
-    await loadClothesAndTenuesTypes();
-  }
 };
 
 // Add New Typical Outfit (Tenue Type)
@@ -122,9 +115,9 @@ const handleAddTenueType = async () => {
 
     await db.records.add(newRecord);
     showAddTenueTypeModal.value = false;
-    formTenueType.value = { nom: '', contexte: 'Bureau', temperature_ideale: 15, vetements_associes: [] };
+    formTenueType.value = { nom: '', contexte: contexts.value[0] || 'Bureau', temperature_ideale: 15, vetements_associes: [] };
     await loadClothesAndTenuesTypes();
-    alert('Tenue type ajoutée !');
+    toast.success('Tenue type ajoutée !');
   } catch (err) {
     console.error(err);
   }
@@ -132,7 +125,6 @@ const handleAddTenueType = async () => {
 
 // Delete Typical Outfit Template
 const handleDeleteTenueType = async (id: string) => {
-  if (!confirm('Supprimer cette tenue type ?')) return;
   try {
     await db.records.update(id, {
       deletedAt: Date.now(),
@@ -153,268 +145,196 @@ const toggleGarmentInTemplate = (id: string) => {
   }
 };
 
-// DB Operations
-const handleExport = async () => {
-  try {
-    const backupJson = await exportDatabase();
-    const blob = new Blob([backupJson], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `bq-cloth-backup-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    statusMessage.value = 'Sauvegarde exportée !';
-    isError.value = false;
-  } catch (err) {
-    statusMessage.value = 'Erreur lors de l\'exportation.';
-    isError.value = true;
+// Custom Contexts Methods
+const handleAddContext = async () => {
+  const name = newContextName.value.trim();
+  if (!name) return;
+  if (contexts.value.includes(name)) {
+    toast.warning('Ce contexte existe déjà !');
+    return;
   }
-};
 
-const handleImport = (event: Event) => {
-  const input = event.target as HTMLInputElement;
-  if (!input.files || input.files.length === 0) return;
-  
-  const file = input.files[0];
-  const reader = new FileReader();
-  
-  isImporting.value = true;
-  statusMessage.value = 'Importation en cours...';
-  
-  reader.onload = async (e) => {
-    try {
-      const jsonText = e.target?.result as string;
-      const result = await importDatabase(jsonText);
-      if (result.success) {
-        statusMessage.value = 'Données importées avec succès !';
-        isError.value = false;
-        emit('data-updated');
-        await checkDbStatus();
-        await loadClothesAndTenuesTypes();
-      } else {
-        statusMessage.value = result.error || 'Échec de l\'importation.';
-        isError.value = true;
-      }
-    } catch (err) {
-      statusMessage.value = 'Fichier invalide.';
-      isError.value = true;
-    } finally {
-      isImporting.value = false;
-    }
-  };
-
-  reader.readAsText(file);
-};
-
-const handleClearDatabase = async () => {
   try {
-    await db.transaction('rw', [db.collections, db.records, db.views, db.templates], async () => {
-      await db.collections.clear();
-      await db.records.clear();
-      await db.views.clear();
-      await db.templates.clear();
-    });
-    showConfirmClear.value = false;
-    statusMessage.value = 'Application réinitialisée !';
-    isError.value = false;
+    const newRec: RecordEntry = {
+      id: `rec-${generateId()}`,
+      collectionId: CONTEXTS_COL_ID,
+      data: { nom: name },
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    await db.records.add(newRec);
+    newContextName.value = '';
+    customContexts.value = await getContextsRecords();
     emit('data-updated');
-    await checkDbStatus();
-    await loadClothesAndTenuesTypes();
   } catch (err) {
     console.error(err);
   }
 };
+
+const handleDeleteContext = async (id: string) => {
+  if (customContexts.value.length <= 1) {
+    toast.warning('Vous devez conserver au moins un contexte.');
+    return;
+  }
+  const ctx = customContexts.value.find(c => c.id === id);
+  if (!ctx) return;
+
+  try {
+    await db.records.update(id, {
+      deletedAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    customContexts.value = await getContextsRecords();
+    emit('data-updated');
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+const citiesList = ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Bordeaux', 'Nantes', 'Strasbourg', 'Lille', 'Nice', 'Montpellier'];
 </script>
 
 <template>
-  <div class="settings-view">
-    <div class="view-header">
-      <div>
-        <h2>⚙️ Configuration & Préférences</h2>
-        <p class="text-secondary">Gère tes préférences de séchage, configure tes suggestions de tenues types et synchronise tes données avec le cloud.</p>
-      </div>
-    </div>
-
-    <div class="settings-grid">
-      <!-- General Prefs and Tenues Types in Left Column -->
-      <div class="left-col-settings">
-        <!-- Preferences Card -->
-        <div class="card glass mb-4">
-          <h3 class="font-bold flex-row mb-4"><Settings :size="18" class="text-primary" /> Préférences de l'application</h3>
-          
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Ma Ville (Météo)</label>
-              <select v-model="currentCity" class="select">
-                <option v-for="c in citiesList" :key="c" :value="c">{{ c }}</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>Temps de séchage (Heures)</label>
-              <input v-model="dryingDelay" type="number" min="1" max="168" class="input" />
-            </div>
-          </div>
-          
-          <p class="text-xs text-muted mb-4">
-            Le délai de séchage définit le nombre d'heures après lesquelles un habit fraîchement lavé redevient automatiquement marqué comme "Disponible".
-          </p>
-
-          <button @click="savePreferences" class="btn btn-primary">Enregistrer les préférences</button>
-        </div>
-
-        <!-- Tenues Types Manager Card -->
-        <div class="card glass">
-          <div class="tenues-types-header mb-4">
-            <h3 class="font-bold flex-row"><Sparkles :size="18" class="text-accent" /> Mes Associations (Tenues Types)</h3>
-            <button @click="showAddTenueTypeModal = true" class="btn btn-accent btn-sm">
-              <Plus :size="14" /> Nouvelle Tenue Type
-            </button>
-          </div>
-
-          <div v-if="tenuesTypes.length === 0" class="text-muted text-center py-4">
-            <p class="text-sm">Aucune association type enregistrée. Crée des associations favorites pour recevoir des suggestions intelligentes sur la page d'accueil.</p>
-          </div>
-
-          <div v-else class="tenues-types-list">
-            <div v-for="tt in tenuesTypes" :key="tt.id" class="tt-item">
-              <div class="tt-header">
-                <div>
-                  <h4 class="font-bold text-md">{{ tt.data.nom }}</h4>
-                  <div class="tt-tags flex-row mt-1">
-                    <span class="badge badge-purple text-xs"><Tag :size="12" /> {{ tt.data.contexte }}</span>
-                    <span class="badge badge-warning text-xs"><Thermometer :size="12" /> {{ tt.data.temperature_ideale }}°C</span>
-                  </div>
-                </div>
-                <button @click="handleDeleteTenueType(tt.id!)" class="icon-btn delete-btn" title="Supprimer">
-                  <Trash2 :size="14" />
-                </button>
-              </div>
-              <div class="tt-garments mt-2 text-secondary text-sm">
-                <strong>Composée de :</strong> 
-                {{ tt.data.vetements_associes.map((id: string) => clothes.find(c => c.id === id)?.data.nom || 'Vêtement inconnu').join(' + ') }}
-              </div>
-            </div>
-          </div>
+  <BaseSettings
+    :db="db"
+    :syncEngine="syncEngine"
+    :clientId="clientId"
+    :isDbEmpty="isDbEmpty"
+    exportFileNamePrefix="bq-cloth"
+    @data-updated="handleDataUpdated"
+    @clear-database="handleClearDatabaseLocal"
+    @generate-demo="handleGenerateDemo"
+  >
+    <!-- Custom content slot: Dressing & Contexts & Outfits Management -->
+    <div class="custom-settings-content">
+      <div class="view-header">
+        <div>
+          <h2>Configuration du dressing</h2>
+          <p class="text-sub">Personnalise tes contextes d'usage de vêtements, configure tes associations d'outfits récurrentes et tes temps de séchage.</p>
         </div>
       </div>
 
-      <!-- Cloud Sync and Actions in Right Column -->
-      <div class="right-col-settings">
-        <!-- Cloud Sync Card -->
-        <div class="card glass mb-4">
-          <div class="card-header">
-            <div class="icon-wrapper primary">
-              <Cloud :size="20" />
+      <div class="settings-grid">
+        <!-- Left Column: Preferences & Custom Contexts -->
+        <div class="left-col-settings flex-col gap-4 w-100">
+          <!-- Preferences Card -->
+          <div class="card glass">
+            <h3 class="font-bold mb-4"><Settings :size="18" /> Préférences de l'application</h3>
+            
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="text-xs font-bold text-sub mb-1">Ma ville (Météo)</label>
+                <select v-model="currentCity" class="select">
+                  <option v-for="c in citiesList" :key="c" :value="c">{{ c }}</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="text-xs font-bold text-sub mb-1">Temps de séchage (Heures)</label>
+                <input v-model="dryingDelay" type="number" min="1" max="168" class="input" />
+              </div>
             </div>
-            <h3 class="font-bold">Sauvegarde Google Drive</h3>
+            
+            <p class="text-xs text-muted mt-2 mb-4 line-height-14">
+              Le délai de séchage définit le nombre d'heures après lesquelles un habit fraîchement lavé redevient automatiquement marqué comme "Disponible".
+            </p>
+
+            <button @click="savePreferences" class="btn btn-primary w-100 height-38">Enregistrer les préférences</button>
           </div>
 
-          <div class="sync-actions-box mt-4">
-            <div v-if="!isDriveConnected" class="drive-inactive-box text-center py-2">
-              <p class="text-secondary text-sm mb-3">Connecte ton compte Google Drive pour activer la synchronisation automatique en tâche de fond.</p>
-              <button @click="connectGoogleDrive" class="btn btn-primary flex-row mx-auto">
-                <Cloud :size="16" /> Connexion Google Drive
+          <!-- Custom Contexts Manager Card -->
+          <div class="card glass">
+            <h3 class="font-bold mb-2"><Tag :size="18" /> Contextes d'usage</h3>
+            <p class="text-muted text-xs mb-4">Personnalise les contextes d'usage de tes vêtements et tenues.</p>
+
+            <div class="form-group flex-row gap-2 mb-4 w-100">
+              <input v-model="newContextName" type="text" placeholder="Nouveau contexte..." class="input flex-grow-1" @keyup.enter="handleAddContext" />
+              <button @click="handleAddContext" class="btn btn-primary flex-row align-center justify-center add-context-btn">
+                <Plus :size="16" />
               </button>
             </div>
 
-            <div v-else class="drive-active-box">
-              <div class="drive-status-info text-sm mb-3">
-                <span class="badge badge-success flex-row"><Check :size="12" /> Connecté au Cloud</span>
-              </div>
-              
-              <div class="status-row text-xs text-secondary mb-3">
-                <p>Dernière synchronisation : <strong>{{ lastSyncTime || 'Jamais' }}</strong></p>
-                <p v-if="syncStatusMsg" class="status-msg text-muted mt-1">{{ syncStatusMsg }}</p>
-              </div>
-
-              <div class="flex-row">
-                <button @click="handleSyncNow" class="btn btn-accent btn-sm flex-row" :disabled="isSyncing">
-                  <RefreshCw :size="14" :class="{ 'spin-icon': isSyncing }" /> Synchroniser maintenant
+            <div class="contexts-badges-list flex-row flex-wrap gap-2 mt-2">
+              <span v-for="c in customContexts" :key="c.id" class="badge badge-primary text-xs flex-row gap-1 align-center pt-1 pb-1 pl-2 pr-2">
+                {{ c.data.nom }}
+                <button @click="handleDeleteContext(c.id!)" class="action-btn delete p-0 ml-1 context-delete-btn" title="Supprimer">
+                  <X :size="12" />
                 </button>
-                <button @click="disconnectGoogleDrive" class="btn btn-danger btn-sm flex-row">
-                  <LogOut :size="14" /> Déconnexion
-                </button>
-              </div>
+              </span>
             </div>
           </div>
         </div>
 
-        <!-- Raw Actions Card -->
-        <div class="card glass mb-4">
-          <h3 class="font-bold flex-row mb-4"><FileJson :size="18" class="text-primary" /> Import / Export JSON</h3>
-          
-          <div class="actions-group flex-row">
-            <button @click="handleExport" class="btn btn-secondary btn-sm flex-row">
-              <Download :size="14" /> Exporter la BDD
-            </button>
-            
-            <label class="btn btn-secondary btn-sm flex-row cursor-pointer">
-              <Upload :size="14" /> Importer JSON
-              <input type="file" accept=".json" @change="handleImport" class="hidden-input" />
-            </label>
-          </div>
+        <!-- Right Column: Tenues Types Manager Card -->
+        <div class="right-col-settings w-100">
+          <div class="card glass w-100">
+            <div class="tenues-types-header">
+              <h3 class="font-bold m-0"><Sparkles :size="18" /> Associations (tenues types)</h3>
+              <button @click="showAddTenueTypeModal = true" class="btn btn-primary btn-sm flex-row">
+                <Plus :size="14" /> Nouvelle tenue type
+              </button>
+            </div>
 
-          <p v-if="statusMessage" class="status-message text-xs mt-3" :class="isError ? 'text-danger' : 'text-accent'">
-            {{ statusMessage }}
-          </p>
-        </div>
+            <div v-if="tenuesTypes.length === 0" class="text-muted text-center py-4">
+              <p class="text-sm">Aucune association type enregistrée. Crée des associations favorites pour recevoir des suggestions intelligentes sur la page d'accueil.</p>
+            </div>
 
-        <!-- Danger Zone -->
-        <div class="card glass danger-card">
-          <h3 class="font-bold text-danger flex-row mb-2"><AlertTriangle :size="18" /> Zone de danger</h3>
-          <p class="text-secondary text-xs mb-4">Réinitialise l'application et vide toutes les données locales en cas de souci.</p>
-
-          <button v-if="!showConfirmClear" @click="showConfirmClear = true" class="btn btn-danger btn-sm">
-            Vider l'application
-          </button>
-          
-          <div v-else class="confirm-box mt-2">
-            <p class="text-danger font-bold text-xs mb-2">⚠️ Attention : Toutes les données seront supprimées définitivement.</p>
-            <div class="flex-row">
-              <button @click="handleClearDatabase" class="btn btn-danger btn-sm">Oui, supprimer tout !</button>
-              <button @click="showConfirmClear = false" class="btn btn-secondary btn-sm">Annuler</button>
+            <div v-else class="tenues-types-list flex-col gap-3">
+              <div v-for="tt in tenuesTypes" :key="tt.id" class="tt-item card glass pt-3 pb-3 pl-4 pr-4">
+                <div class="tt-header flex-row justify-between align-start w-100">
+                  <div>
+                    <h4 class="font-bold text-sm m-0 tt-title">{{ tt.data.nom }}</h4>
+                    <div class="tt-tags mt-1">
+                      <span class="badge badge-primary text-xs align-center gap-1"><Tag :size="11" /> {{ tt.data.contexte }}</span>
+                      <span class="badge badge-warning text-xs align-center gap-1"><Thermometer :size="11" /> {{ tt.data.temperature_ideale }}°C</span>
+                    </div>
+                  </div>
+                  <button @click="handleDeleteTenueType(tt.id!)" class="action-btn delete" title="Supprimer"><Trash2 :size="14" /></button>
+                </div>
+                <div class="tt-garments mt-2 text-muted text-xs">
+                  <strong>Composée de :</strong> 
+                  {{ tt.data.vetements_associes.map((id: string) => clothes.find(c => c.id === id)?.data.nom || 'Vêtement inconnu').join(' + ') }}
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+  </BaseSettings>
 
+  <!-- Modals Layer -->
+  <Teleport to="body">
     <!-- Modal : Add Tenue Type -->
-    <div v-if="showAddTenueTypeModal" class="modal-overlay">
-      <div class="modal-container">
-        <div class="modal-header">
+    <div v-if="showAddTenueTypeModal" class="modal-overlay" @click.self="showAddTenueTypeModal = false">
+      <div class="modal-container card glass fade-in">
+        <div class="modal-header flex-row align-center justify-between mb-4">
           <h3>➕ Nouvelle Tenue Type</h3>
           <button @click="showAddTenueTypeModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
-          <div class="form-group">
-            <label>Nom de la tenue type *</label>
+          <div class="form-group mb-4">
+            <label class="text-xs font-bold text-sub block mb-1">Nom de la tenue type *</label>
             <input v-model="formTenueType.nom" type="text" placeholder="Ex: Chemise Lin & Chino Sable" class="input" />
           </div>
 
-          <div class="form-grid">
+          <div class="form-grid mb-4">
             <div class="form-group">
-              <label>Contexte d'usage</label>
+              <label class="text-xs font-bold text-sub block mb-1">Contexte d'usage</label>
               <select v-model="formTenueType.contexte" class="select">
                 <option v-for="ctx in contexts" :key="ctx" :value="ctx">{{ ctx }}</option>
               </select>
             </div>
             <div class="form-group">
-              <label>Température Idéale (°C)</label>
+              <label class="text-xs font-bold text-sub block mb-1">Température Idéale (°C)</label>
               <input v-model="formTenueType.temperature_ideale" type="number" class="input" />
             </div>
           </div>
 
           <div class="clothes-selector-box mt-4">
-            <label class="font-bold text-xs text-secondary mb-2 block">SÉLECTIONNE LES VÊTEMENTS DE CETTE TENUE *</label>
+            <label class="font-bold text-xs text-sub mb-2 block">SÉLECTIONNE LES VÊTEMENTS DE CETTE TENUE *</label>
             
-            <div class="tt-clothes-checklist mt-2">
+            <div class="tt-clothes-checklist">
               <div 
                 v-for="item in clothes" 
                 :key="item.id"
@@ -431,25 +351,43 @@ const handleClearDatabase = async () => {
           </div>
         </div>
         <div class="modal-footer">
-          <span class="badge badge-primary text-xs mr-auto" v-if="formTenueType.vetements_associes.length > 0">
+          <span class="badge badge-primary text-xs pt-1 pb-1 pl-2 pr-2 modal-footer-badge" v-if="formTenueType.vetements_associes.length > 0">
             {{ formTenueType.vetements_associes.length }} vêtements associés
           </span>
-          <button @click="showAddTenueTypeModal = false" class="btn btn-secondary">Annuler</button>
-          <button @click="handleAddTenueType" class="btn btn-accent" :disabled="!formTenueType.nom.trim() || formTenueType.vetements_associes.length === 0">
+          <button @click="showAddTenueTypeModal = false" class="btn btn-secondary btn-sm height-34">Annuler</button>
+          <button @click="handleAddTenueType" class="btn btn-secondary btn-sm height-34" :disabled="!formTenueType.nom.trim() || formTenueType.vetements_associes.length === 0">
             Enregistrer
           </button>
         </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped lang="scss">
+.custom-settings-content {
+  margin-top: 3rem;
+  width: 100%;
+}
+
+.view-header {
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-white) 6%, transparent);
+  padding-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  width: 100%;
+}
+
 .settings-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
   align-items: start;
+  width: 100%;
   
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
@@ -462,10 +400,42 @@ const handleClearDatabase = async () => {
   gap: 1rem;
 }
 
+.height-38 {
+  height: 38px;
+}
+
+.height-34 {
+  height: 34px;
+}
+
+.line-height-14 {
+  line-height: 1.4;
+}
+
+.add-context-btn {
+  height: 38px;
+  width: 38px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.context-delete-btn {
+  display: inline-flex;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: color-mix(in srgb, var(--color-white) 60%, transparent);
+  padding-left: 2px;
+}
+
 .tenues-types-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-white) 6%, transparent);
+  width: 100%;
 }
 
 .tenues-types-list {
@@ -476,7 +446,8 @@ const handleClearDatabase = async () => {
 
 .tt-item {
   border: 1px solid var(--border-color);
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: color-mix(in srgb, var(--color-white) 1%, transparent) !important;
+  border-color: color-mix(in srgb, var(--color-white) 5%, transparent);
   border-radius: var(--radius-sm);
   padding: 0.75rem 1rem;
 }
@@ -487,94 +458,80 @@ const handleClearDatabase = async () => {
   align-items: start;
 }
 
+.tt-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
 .tt-tags {
   display: flex;
   gap: 0.35rem;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.icon-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-sm);
-  background-color: rgba(59, 130, 246, 0.1);
-  color: var(--color-primary);
-}
-
-.status-msg {
-  white-space: pre-wrap;
-}
-
-.hidden-input {
-  display: none;
-}
-
-.danger-card {
-  border-color: rgba(239, 68, 68, 0.2) !important;
-  background-color: rgba(239, 68, 68, 0.02) !important;
+  margin-top: 4px;
 }
 
 .cursor-pointer {
   cursor: pointer;
 }
 
-.mx-auto {
-  margin-left: auto;
-  margin-right: auto;
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: color-mix(in srgb, var(--color-black) 50%, transparent);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
 }
 
-.mr-auto {
-  margin-right: auto;
+.modal-container {
+  width: 500px;
+  max-width: 95vw;
+  padding: 1.5rem !important;
 }
 
-.block {
-  display: block;
+.modal-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
 .tt-clothes-checklist {
-  max-height: 250px;
+  max-height: 220px;
   overflow-y: auto;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  padding: 0.5rem;
-  background-color: rgba(15, 23, 42, 0.3);
+  background-color: color-mix(in srgb, var(--bg-primary) 30%, transparent);
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  padding: 0.5rem;
 }
 
 .garment-check-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: color-mix(in srgb, var(--color-white) 2%, transparent);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 0.4rem 0.6rem;
   font-size: 0.825rem;
   cursor: pointer;
   transition: var(--transition);
-  
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
   &:hover {
     background-color: var(--border-hover);
     border-color: var(--border-hover);
   }
   
   &.checked {
-    background-color: rgba(16, 185, 129, 0.1);
-    border-color: var(--color-accent);
+    background-color: color-mix(in srgb, var(--color-success) 10%, transparent) !important;
+    border-color: var(--color-accent) !important;
     
     .check-box {
-      background-color: var(--color-accent);
-      border-color: var(--color-accent);
+      background-color: var(--color-accent) !important;
+      border-color: var(--color-accent) !important;
     }
   }
 }
@@ -584,38 +541,29 @@ const handleClearDatabase = async () => {
   height: 18px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
+  background-color: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(15, 23, 42, 0.6);
-  flex-shrink: 0;
 }
 
-.icon-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  padding: 0.35rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: var(--transition);
-  
-  &:hover {
-    color: var(--text-primary);
-    background-color: var(--border-hover);
-  }
-  
-  &.delete-btn:hover {
-    color: var(--color-danger);
-    background-color: rgba(239, 68, 68, 0.1);
-  }
+.modal-footer {
+  border-top: 1px solid color-mix(in srgb, var(--color-white) 6%, transparent);
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.spin-icon {
-  animation: spin 1s linear infinite;
+.modal-footer-badge {
+  margin-right: auto;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.tt-garments {
+  margin-top: 0.5rem;
+  line-height: 1.4;
 }
 </style>

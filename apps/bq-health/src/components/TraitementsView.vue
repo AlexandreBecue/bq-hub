@@ -7,8 +7,10 @@ import {
   formatToFrenchDate 
 } from '../db/queries';
 import { Plus, X, Heart, ShieldAlert } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
+const toast = useToast();
 
 const presc = ref<RecordEntry[]>([]);
 const isLoading = ref(true);
@@ -70,7 +72,7 @@ const toggleTreatmentActive = async (item: RecordEntry) => {
 // Handle Log
 const handleAddPresc = async () => {
   if (!formPresc.value.nom_medicament.trim() || !formPresc.value.posologie.trim()) {
-    alert('Veuillez renseigner le nom du médicament et sa posologie.');
+    toast.warning('Veuillez renseigner le nom du médicament et sa posologie.');
     return;
   }
 
@@ -102,7 +104,7 @@ const handleAddPresc = async () => {
     };
     emit('data-updated');
     loadData();
-    alert('Traitement enregistré !');
+    toast.success('Traitement enregistré !');
   } catch (err) {
     console.error(err);
   }
@@ -110,7 +112,6 @@ const handleAddPresc = async () => {
 
 // Delete record
 const handleDeletePresc = async (id: string) => {
-  if (!confirm('Supprimer cette fiche de traitement ?')) return;
   try {
     await db.records.update(id, {
       deletedAt: Date.now(),
@@ -128,12 +129,12 @@ const handleDeletePresc = async (id: string) => {
   <div class="traitements-view">
     <div class="view-header">
       <div>
-        <h2>💊 Traitements & Ordonnances</h2>
-        <p class="text-secondary">Suis tes ordonnances actives, renseigne tes posologies pour alimenter ton pilulier quotidien et archive tes anciens traitements.</p>
+        <h2>Traitements & ordonnances</h2>
+        <p class="text-sub">Suis tes ordonnances actives, renseigne tes posologies pour alimenter ton pilulier quotidien et archive tes anciens traitements.</p>
       </div>
       <div class="view-actions">
         <button @click="showAddModal = true" class="btn btn-primary">
-          <Plus :size="18" /> Nouveau Traitement
+          <Plus :size="18" /> Nouveau traitement
         </button>
       </div>
     </div>
@@ -142,7 +143,7 @@ const handleDeletePresc = async (id: string) => {
     <div class="traitements-dashboard-layout">
       <!-- Active Treatments Card -->
       <div class="card glass mb-4">
-        <h3 class="font-bold flex-row mb-4"><Heart class="text-primary" :size="18" /> Traitements en cours (Actifs)</h3>
+        <h3 class="font-bold flex-row mb-4"><Heart :size="18" /> Traitements en cours</h3>
         
         <div v-if="isLoading" class="text-center py-4">
           <div class="spinner"></div>
@@ -161,13 +162,13 @@ const handleDeletePresc = async (id: string) => {
                 <h4 class="t-name font-black text-md">{{ t.data.nom_medicament }}</h4>
                 <span class="badge badge-success text-xs mt-1">En cours</span>
               </div>
-              <button @click="handleDeletePresc(t.id!)" class="icon-btn delete-btn" title="Supprimer">
+              <button @click="handleDeletePresc(t.id!)" class="action-btn delete" title="Supprimer">
                 <X :size="14" />
               </button>
             </div>
 
-            <div class="t-card-body mt-3 text-sm text-secondary">
-              <p class="posology-highlight font-bold text-accent">{{ t.data.posologie }}</p>
+            <div class="t-card-body mt-3 text-sm text-sub">
+              <p class="posology-highlight font-bold text-sub">{{ t.data.posologie }}</p>
               <div class="t-dates-row mt-2 text-xs text-muted flex-row justify-between flex-wrap gap-2">
                 <span>Début : <strong>{{ formatToFrenchDate(t.data.date_debut) }}</strong></span>
                 <span v-if="t.data.date_fin">Fin : <strong>{{ formatToFrenchDate(t.data.date_fin) }}</strong></span>
@@ -176,7 +177,7 @@ const handleDeletePresc = async (id: string) => {
             </div>
 
             <div class="t-card-footer mt-4 border-top pt-2 flex-row justify-between">
-              <span class="text-xs text-secondary">Finir le traitement :</span>
+              <span class="text-xs text-sub">Finir le traitement :</span>
               <div class="active-toggle flex-row">
                 <label class="switch">
                   <input type="checkbox" :checked="t.data.actif !== false" @change="toggleTreatmentActive(t)" />
@@ -193,7 +194,7 @@ const handleDeletePresc = async (id: string) => {
 
       <!-- Historical Treatments Card -->
       <div class="card glass">
-        <h3 class="font-bold flex-row mb-4"><Heart class="text-muted" :size="18" /> Historique (Traitements terminés)</h3>
+        <h3 class="font-bold flex-row mb-4"><Heart class="text-muted" :size="18" /> Historique</h3>
         
         <div v-if="isLoading" class="text-center py-4">
           <div class="spinner"></div>
@@ -210,7 +211,7 @@ const handleDeletePresc = async (id: string) => {
                 <h4 class="t-name font-bold text-sm">{{ t.data.nom_medicament }}</h4>
                 <span class="badge badge-danger text-xs mt-1">Terminé</span>
               </div>
-              <button @click="handleDeletePresc(t.id!)" class="icon-btn delete-btn" title="Supprimer">
+              <button @click="handleDeletePresc(t.id!)" class="action-btn delete" title="Supprimer">
                 <X :size="14" />
               </button>
             </div>
@@ -241,7 +242,7 @@ const handleDeletePresc = async (id: string) => {
     <div v-if="showAddModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>➕ Enregistrer un Traitement</h3>
+          <h3>Enregistrer un traitement</h3>
           <button @click="showAddModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
@@ -277,7 +278,7 @@ const handleDeletePresc = async (id: string) => {
                 <input type="checkbox" v-model="formPresc.actif" />
                 <span class="slider"></span>
               </label>
-              <span class="text-secondary font-bold text-sm">Traitement en cours (Actif)</span>
+              <span class="text-sub font-bold text-sm">Traitement en cours (Actif)</span>
             </div>
           </div>
         </div>
@@ -314,38 +315,18 @@ const handleDeletePresc = async (id: string) => {
   justify-content: space-between;
   
   &.finished {
-    background-color: rgba(30, 41, 59, 0.2);
+    background-color: color-mix(in srgb, var(--bg-secondary) 20%, transparent);
   }
 }
 
 .posology-highlight {
-  background-color: rgba(6, 182, 212, 0.05);
-  border: 1px solid rgba(6, 182, 212, 0.15);
+  background-color: color-mix(in srgb, var(--color-accent) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 15%, transparent);
   padding: 0.4rem 0.65rem;
   border-radius: var(--radius-sm);
-}
-
-.icon-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  padding: 0.35rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: var(--transition);
-  
-  &:hover {
-    color: var(--text-primary);
-    background-color: var(--border-hover);
   }
-  
-  &.delete-btn:hover {
-    color: var(--color-danger);
-    background-color: rgba(239, 68, 68, 0.1);
-  }
-}
 
-.active-toggle {
+  .t-name {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -369,8 +350,8 @@ const handleDeletePresc = async (id: string) => {
   padding-top: 0.5rem;
 }
 
-.text-success { color: #34d399 !important; }
-.text-danger { color: #f87171 !important; }
+.text-success { color: var(--color-success) !important; }
+.text-danger { color: var(--color-danger) !important; }
 
 .text-xs { font-size: 0.75rem; }
 .text-sm { font-size: 0.85rem; }

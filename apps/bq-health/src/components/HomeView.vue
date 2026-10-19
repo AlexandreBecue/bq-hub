@@ -87,8 +87,8 @@ const vaccineAlerts = computed(() => {
   <div class="home-view">
     <div class="view-header">
       <div>
-        <h2>🩺 Cockpit Santé & Urgences</h2>
-        <p class="text-secondary">Tes informations vitales d'urgence, ton pilulier actif et l'état de tes rappels de vaccins.</p>
+        <h2>Cockpit santé</h2>
+        <p class="text-sub">Tes informations vitales d'urgence, ton pilulier actif et l'état de tes rappels de vaccins.</p>
       </div>
     </div>
 
@@ -100,7 +100,7 @@ const vaccineAlerts = computed(() => {
         <div class="card glass emergency-card mb-4">
           <div class="card-header flex-row mb-3">
             <ShieldAlert class="text-primary icon-alert-pulse" :size="24" />
-            <h3 class="font-bold text-lg text-primary uppercase tracking-wide">Fiche de Secours (ICE)</h3>
+            <h3 class="font-bold text-lg text-primary uppercase tracking-wide">Fiche de secours (ICE)</h3>
           </div>
           
           <div class="emergency-blood-box text-center py-2 mb-3">
@@ -109,7 +109,7 @@ const vaccineAlerts = computed(() => {
           </div>
 
           <div class="emergency-info-row mb-3">
-            <span class="info-lbl text-xs text-muted font-bold block uppercase mb-1">Allergies & Intolérances</span>
+            <span class="info-lbl text-xs text-muted font-bold block uppercase mb-1">Allergies & intolérances</span>
             <p class="info-val text-sm" :class="{ 'text-danger font-bold': allergies !== 'Aucune allergie connue.' }">
               {{ allergies }}
             </p>
@@ -117,13 +117,13 @@ const vaccineAlerts = computed(() => {
 
           <div class="emergency-info-row border-top pt-3">
             <span class="info-lbl text-xs text-muted font-bold block uppercase mb-1">Contact d'urgence (ICE)</span>
-            <p class="info-val font-bold text-sm text-secondary">
+            <p class="info-val font-bold text-sm text-sub">
               {{ emergencyContact }}
             </p>
           </div>
 
           <p class="text-xs text-muted mt-3 italic text-center">
-            Configure ces informations d'urgence dans l'onglet **Options / Paramètres** pour les modifier.
+            Configure ces informations d'urgence dans l'onglet <strong>Paramètres</strong> pour les modifier.
           </p>
         </div>
       </div>
@@ -132,7 +132,7 @@ const vaccineAlerts = computed(() => {
       <div class="medical-alerts-col">
         <!-- Pilulier / Active Treatments Card -->
         <div class="card glass mb-4">
-          <h3 class="font-bold flex-row mb-3"><Heart class="text-primary" :size="18" /> Mon Pilulier du Jour</h3>
+          <h3 class="font-bold flex-row mb-3"><Heart :size="18" /> Mon pilulier du jour</h3>
           
           <div v-if="isLoading" class="text-center py-3">
             <div class="mini-spinner"></div>
@@ -140,7 +140,7 @@ const vaccineAlerts = computed(() => {
 
           <div v-else-if="activeTreatments.length === 0" class="text-center py-4 text-muted text-sm">
             <p>Aucun traitement ou ordonnance actif en cours.</p>
-            <p class="text-xs mt-1">Saisis tes traitements dans l'onglet **Traitements** pour planifier tes posologies.</p>
+            <p class="text-xs mt-1">Saisis tes traitements dans l'onglet <strong>Traitements</strong> pour planifier tes posologies.</p>
           </div>
 
           <div v-else class="treatments-pillbox-list">
@@ -148,7 +148,7 @@ const vaccineAlerts = computed(() => {
               <span class="pill-indicator-dot"></span>
               <div class="pill-details">
                 <h4 class="pill-name font-bold text-sm">{{ t.data.nom_medicament }}</h4>
-                <p class="pill-poso text-xs text-accent font-bold mt-0.5">{{ t.data.posologie }}</p>
+                <p class="pill-poso text-xs text-sub font-bold mt-0.5">{{ t.data.posologie }}</p>
                 <p class="pill-doctor text-xs text-muted" v-if="t.data.medecin_prescripteur">Prescrit par : {{ t.data.medecin_prescripteur }}</p>
               </div>
             </div>
@@ -157,7 +157,7 @@ const vaccineAlerts = computed(() => {
 
         <!-- Vaccination reminders -->
         <div class="card glass">
-          <h3 class="font-bold flex-row mb-3"><Calendar class="text-accent" :size="18" /> Alertes de Vaccination</h3>
+          <h3 class="font-bold flex-row mb-3"><Calendar class="text-sub" :size="18" /> Alertes de vaccination</h3>
           
           <div v-if="isLoading" class="text-center py-3">
             <div class="mini-spinner"></div>
@@ -177,7 +177,7 @@ const vaccineAlerts = computed(() => {
               <AlertTriangle class="alert-icon flex-shrink-0" :size="18" />
               <div>
                 <h4 class="alert-title font-bold text-xs uppercase">{{ alert.type }} <span class="normal-case text-muted" v-if="alert.vaccin">({{ alert.vaccin }})</span></h4>
-                <p class="alert-desc text-xs mt-0.5 text-secondary">{{ alert.desc }}</p>
+                <p class="alert-desc text-xs mt-0.5 text-sub">{{ alert.desc }}</p>
               </div>
             </div>
           </div>
@@ -200,8 +200,8 @@ const vaccineAlerts = computed(() => {
 }
 
 .emergency-card {
-  border-color: rgba(244, 63, 94, 0.3) !important;
-  background-color: rgba(244, 63, 94, 0.01) !important;
+  border-color: color-mix(in srgb, var(--color-accent) 30%, transparent) !important;
+  background-color: color-mix(in srgb, var(--color-accent) 1%, transparent) !important;
 }
 
 .icon-alert-pulse {
@@ -210,13 +210,13 @@ const vaccineAlerts = computed(() => {
 
 @keyframes pulse {
   0% { transform: scale(1); }
-  50% { transform: scale(1.1); filter: drop-shadow(0 0 4px rgba(244, 63, 94, 0.4)); }
+  50% { transform: scale(1.1); filter: drop-shadow(0 0 4px color-mix(in srgb, var(--color-accent) 40%, transparent)); }
   100% { transform: scale(1); }
 }
 
 .emergency-blood-box {
-  background-color: rgba(244, 63, 94, 0.08);
-  border: 1px solid rgba(244, 63, 94, 0.15);
+  background-color: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 15%, transparent);
   border-radius: var(--radius-sm);
 }
 
@@ -227,7 +227,7 @@ const vaccineAlerts = computed(() => {
 }
 
 .treatment-pillbox-item {
-  background-color: rgba(255, 255, 255, 0.01);
+  background-color: color-mix(in srgb, var(--color-white) 1%, transparent);
   border: 1px solid var(--border-color);
   padding: 0.65rem 0.85rem;
   border-radius: var(--radius-sm);
@@ -255,14 +255,14 @@ const vaccineAlerts = computed(() => {
   border-radius: var(--radius-sm);
   
   &.urgent {
-    border-color: rgba(239, 68, 68, 0.25);
-    background-color: rgba(239, 68, 68, 0.02);
+    border-color: color-mix(in srgb, var(--color-danger) 25%, transparent);
+    background-color: color-mix(in srgb, var(--color-danger) 2%, transparent);
     
     .alert-icon { color: var(--color-danger); }
   }
   &.warning {
-    border-color: rgba(245, 158, 11, 0.25);
-    background-color: rgba(245, 158, 11, 0.02);
+    border-color: color-mix(in srgb, var(--color-warning) 25%, transparent);
+    background-color: color-mix(in srgb, var(--color-warning) 2%, transparent);
     
     .alert-icon { color: var(--color-warning); }
   }
@@ -276,8 +276,8 @@ const vaccineAlerts = computed(() => {
   padding-top: 0.75rem;
 }
 
-.text-success { color: #34d399 !important; }
-.text-danger { color: #f87171 !important; }
+.text-success { color: var(--color-success) !important; }
+.text-danger { color: var(--color-danger) !important; }
 
 .text-xs { font-size: 0.75rem; }
 .text-sm { font-size: 0.85rem; }

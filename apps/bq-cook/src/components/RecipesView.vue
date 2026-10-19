@@ -2,11 +2,15 @@
 import { ref, onMounted } from 'vue';
 import { db, generateId, type RecordEntry } from '../db';
 import { RECIPES_COL_ID, getRecipeRecords, getStockRecords } from '../db/queries';
-import { Plus, Trash2, Clock, BookOpen, Utensils, X, Check } from '@lucide/vue';
+import { Plus, Trash2, Clock, BookOpen, Utensils, X, Check, Edit2 } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
+
+const toast = useToast();
 
 const recipes = ref<RecordEntry[]>([]);
 const stockItems = ref<RecordEntry[]>([]);
 const showAddModal = ref(false);
+const editingRecipeId = ref<string | null>(null);
 const activeRecipe = ref<RecordEntry | null>(null);
 
 // Form States
@@ -25,6 +29,7 @@ onMounted(() => {
 });
 
 const openAddModal = () => {
+  editingRecipeId.value = null;
   formName.value = '';
   formPrepTime.value = 15;
   formCookTime.value = 20;
@@ -32,43 +37,62 @@ const openAddModal = () => {
   showAddModal.value = true;
 };
 
+const openEditModal = (rec: RecordEntry) => {
+  editingRecipeId.value = rec.id || null;
+  formName.value = rec.data.nom || '';
+  formPrepTime.value = rec.data.temps_de_preparation || 15;
+  formCookTime.value = rec.data.temps_de_cuisson || 20;
+  formIngredients.value = [...(rec.data.ingredients || [])];
+  showAddModal.value = true;
+};
+
 const handleSaveRecipe = async () => {
   if (!formName.value.trim()) {
-    alert('Le nom de la recette est obligatoire.');
+    toast.warning('Le nom de la recette est obligatoire.');
     return;
   }
 
   try {
-    const record: RecordEntry = {
-      id: `rec-${generateId()}`,
-      collectionId: RECIPES_COL_ID,
-      data: {
-        nom: formName.value.trim(),
-        ingredients: formIngredients.value,
-        temps_de_preparation: formPrepTime.value || 10,
-        temps_de_cuisson: formCookTime.value || 15
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+    const data = {
+      nom: formName.value.trim(),
+      ingredients: [...formIngredients.value],
+      temps_de_preparation: formPrepTime.value || 10,
+      temps_de_cuisson: formCookTime.value || 15
     };
 
-    await db.records.add(record);
+    if (editingRecipeId.value) {
+      await db.records.update(editingRecipeId.value, {
+        data,
+        updatedAt: Date.now()
+      });
+      toast.success('Recette mise à jour !');
+    } else {
+      const record: RecordEntry = {
+        id: `rec-${generateId()}`,
+        collectionId: RECIPES_COL_ID,
+        data,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await db.records.add(record);
+      toast.success('Recette ajoutée !');
+    }
+
     showAddModal.value = false;
     await loadData();
   } catch (err) {
     console.error('Erreur lors de l\'enregistrement de la recette:', err);
+    toast.error('Erreur lors de l\'enregistrement.');
   }
 };
 
 const handleDeleteRecipe = async (id: string) => {
-  if (confirm('Es-tu sûr de vouloir supprimer cette recette ?')) {
     try {
       await db.records.update(id, { deletedAt: Date.now(), updatedAt: Date.now() });
       await loadData();
     } catch (err) {
       console.error('Erreur lors de la suppression:', err);
     }
-  }
 };
 
 const getIngredientNames = (ingIds: string[]) => {
@@ -84,7 +108,7 @@ const getIngredientNames = (ingIds: string[]) => {
   <div class="recipes-view">
     <div class="view-header-row">
       <div class="title-sub">
-        <h2>Mes Recettes</h2>
+        <h2>Mes recettes</h2>
         <p class="desc">Gère tes idées de repas habituels</p>
       </div>
       <button @click="openAddModal" class="btn btn-primary btn-sm">
@@ -122,9 +146,12 @@ const getIngredientNames = (ingIds: string[]) => {
           <strong>Ingrédients :</strong> {{ getIngredientNames(rec.data.ingredients) }}
         </p>
 
-        <div class="recipe-card-actions" @click.stop>
-          <button @click="handleDeleteRecipe(rec.id!)" class="btn btn-danger-link btn-xs" title="Supprimer la recette">
-            <Trash2 class="trash-icon" /> Supprimer
+        <div class="recipe-card-actions flex-row gap-1" @click.stop>
+          <button @click="openEditModal(rec)" class="action-btn edit" title="Modifier la recette">
+            <Edit2 :size="14" />
+          </button>
+          <button @click="handleDeleteRecipe(rec.id!)" class="action-btn delete" title="Supprimer la recette">
+            <Trash2 :size="14" />
           </button>
         </div>
       </div>
@@ -166,13 +193,13 @@ const getIngredientNames = (ingIds: string[]) => {
       </Transition>
     </Teleport>
 
-    <!-- Add Recipe Modal -->
+    <!-- Add / Edit Recipe Modal -->
     <Teleport to="body">
       <Transition name="modal">
         <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
           <div class="modal-card card glass fade-in">
             <div class="modal-header">
-              <h2>Ajouter une Recette</h2>
+              <h2>{{ editingRecipeId ? 'Modifier la recette' : 'Ajouter une recette' }}</h2>
               <button @click="showAddModal = false" class="btn-close-modal"><X /></button>
             </div>
             <div class="modal-body text-left">
@@ -200,13 +227,15 @@ const getIngredientNames = (ingIds: string[]) => {
                     <span class="checkmark"></span>
                     <span class="label-text">{{ item.data.nom }}</span>
                   </label>
-                  <p v-if="stockItems.length === 0" class="field-tip error-text">Aucun produit en stock disponible. Crée des fiches dans l'onglet Stocks d'abord.</p>
+                  <p v-if="stockItems.length === 0" class="field-tip error-text">Aucun produit en stock disponible. Crée des fiches dans l'onglet <strong>Stocks</strong> d'abord.</p>
                 </div>
               </div>
             </div>
             <div class="modal-footer">
               <button @click="showAddModal = false" class="btn btn-secondary">Annuler</button>
-              <button @click="handleSaveRecipe" class="btn btn-primary">Enregistrer la recette</button>
+              <button @click="handleSaveRecipe" class="btn btn-primary">
+                {{ editingRecipeId ? 'Enregistrer les modifications' : 'Enregistrer la recette' }}
+              </button>
             </div>
           </div>
         </div>
@@ -247,8 +276,8 @@ const getIngredientNames = (ingIds: string[]) => {
     width: 36px;
     height: 36px;
     border-radius: var(--radius-sm);
-    background-color: rgba(59, 130, 246, 0.15);
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    background-color: color-mix(in srgb, var(--color-info) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-info) 30%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -283,7 +312,7 @@ const getIngredientNames = (ingIds: string[]) => {
 
 .ingredients-preview {
   font-size: 0.85rem;
-  color: var(--text-secondary);
+  color: var(--text-sub);
   line-height: 1.4;
   margin: 0;
   display: -webkit-box;
@@ -302,43 +331,19 @@ const getIngredientNames = (ingIds: string[]) => {
   margin-top: 0.25rem;
 }
 
-.btn-danger-link {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.8rem;
-  padding: 0.25rem;
-  border-radius: var(--radius-sm);
-  transition: var(--transition);
-  
-  &:hover {
-    color: var(--color-danger);
-    background-color: rgba(239, 68, 68, 0.1);
-  }
-  
-  .trash-icon {
-    width: 13px;
-    height: 13px;
-  }
-}
-
 /* Modal layout refinements */
 .modal-meta-row {
   display: flex;
   gap: 1rem;
   
   .meta-badge {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: color-mix(in srgb, var(--color-white) 5%, transparent);
     border: 1px solid var(--border-color);
     border-radius: 999px;
     padding: 0.4rem 0.85rem;
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: var(--text-sub);
     display: flex;
     align-items: center;
     gap: 0.35rem;
@@ -370,14 +375,14 @@ const getIngredientNames = (ingIds: string[]) => {
   .check-icon {
     width: 16px;
     height: 16px;
-    color: #10b981;
+    color: var(--color-success);
   }
 }
 
 .ingredients-selection-list {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background-color: rgba(0, 0, 0, 0.15);
+  background-color: color-mix(in srgb, var(--color-black) 15%, transparent);
   max-height: 200px;
   overflow-y: auto;
   padding: 0.5rem;

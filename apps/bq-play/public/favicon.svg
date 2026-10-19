@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none">
+  <!-- Top Face (lighter violet) -->
+  <polygon points="12,2 20,7 12,12 4,7" fill="#a78bfa" stroke="#473e4a" stroke-width="0.5" stroke-linejoin="round" />
+  
+  <!-- Left Face (medium violet) -->
+  <polygon points="4,7 12,12 12,22 4,17" fill="#8b5cf6" stroke="#473e4a" stroke-width="0.5" stroke-linejoin="round" />
+  
+  <!-- Right Face (dark violet) -->
+  <polygon points="12,12 20,7 20,17 12,22" fill="#6d28d9" stroke="#473e4a" stroke-width="0.5" stroke-linejoin="round" />
+  
+  <!-- Dots (Pips) -->
+  <!-- Top Face: 1 Dot (white) -->
+  <circle cx="12" cy="7" r="1" fill="#ffffff" />
+  
+  <!-- Left Face: 3 Dots (white) -->
+  <circle cx="6" cy="11" r="1" fill="#ffffff" />
+  <circle cx="8" cy="14.5" r="1" fill="#ffffff" />
+  <circle cx="10" cy="18" r="1" fill="#ffffff" />
+  
+  <!-- Right Face: 5 Dots (white) -->
+  <circle cx="14" cy="13.5" r="1" fill="#ffffff" />
+  <circle cx="18" cy="11" r="1" fill="#ffffff" />
+  <circle cx="16.1" cy="14.8" r="1" fill="#ffffff" />
+  <circle cx="14" cy="18" r="1" fill="#ffffff" />
+  <circle cx="18" cy="16" r="1" fill="#ffffff" />
+</svg>

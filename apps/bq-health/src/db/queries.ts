@@ -1,11 +1,11 @@
 import { db, type RecordEntry, type CollectionSchema, type FieldType } from './index';
 
 // Collection IDs
-export const VACCINS_COL_ID = 'col-7lp7tols4';     // Santé - Vaccins (Existant)
-export const RDVS_COL_ID = 'col-y7u1o2p3w';        // Rendez-vous (Abstract)
-export const PRESC_COL_ID = 'col-n9p5m2r8t';       // Traitements / Ordonnances (Abstract)
-export const METRICS_COL_ID = 'col-p01ds-m3ns';     // Mensurations / Poids (Abstract)
-export const SUGGESTIONS_COL_ID = 'col-1nb0x-sug';  // Inbox Suggestions (Transversal)
+export const VACCINS_COL_ID = 'col-7lp7tols4';     // Santé - Vaccins
+export const RDVS_COL_ID = 'col-99i4k236h';        // Rendez-vous
+export const PRESC_COL_ID = 'col-r4w9k2p7e';       // Traitements / Ordonnances
+export const METRICS_COL_ID = 'col-h2n6v8b3m';     // Mensurations / Poids
+export const SUGGESTIONS_COL_ID = 'col-9w4b1v8zp';  // Inbox Suggestions (bq-bank)
 
 /**
  * Format YYYY-MM-DD to DD/MM/YYYY
@@ -32,7 +32,7 @@ export async function initializeCollections() {
   if (!colIds.includes(VACCINS_COL_ID)) {
     newCols.push({
       id: VACCINS_COL_ID,
-      name: 'Santé - Vaccins',
+      name: 'bq-health - vaccins',
       description: 'Suivi et historique de vaccination',
       createdAt: Date.now(),
       primaryFieldKey: 'date',
@@ -50,7 +50,7 @@ export async function initializeCollections() {
   if (!colIds.includes(RDVS_COL_ID)) {
     newCols.push({
       id: RDVS_COL_ID,
-      name: 'Rendez-vous Médicaux',
+      name: 'bq-health - rendez-vous',
       description: 'Agenda de mes consultations médicales',
       createdAt: Date.now() + 10,
       primaryFieldKey: 'date',
@@ -70,7 +70,7 @@ export async function initializeCollections() {
   if (!colIds.includes(PRESC_COL_ID)) {
     newCols.push({
       id: PRESC_COL_ID,
-      name: 'Traitements & Ordonnances',
+      name: 'bq-health - traitements & ordonnances',
       description: 'Suivi de mes ordonnances et pilules',
       createdAt: Date.now() + 20,
       primaryFieldKey: 'nom_medicament',
@@ -89,7 +89,7 @@ export async function initializeCollections() {
   if (!colIds.includes(METRICS_COL_ID)) {
     newCols.push({
       id: METRICS_COL_ID,
-      name: 'Poids & Mensurations',
+      name: 'bq-health - mensurations',
       description: 'Suivi corporel anthropométrique',
       createdAt: Date.now() + 30,
       primaryFieldKey: 'date',
@@ -109,7 +109,7 @@ export async function initializeCollections() {
   if (!colIds.includes(SUGGESTIONS_COL_ID)) {
     newCols.push({
       id: SUGGESTIONS_COL_ID,
-      name: 'Inbox / Suggestions',
+      name: 'bq-bank - suggestions',
       description: 'Boîte de réception pour suggestions transversales',
       createdAt: Date.now() + 40,
       primaryFieldKey: 'source_app',
@@ -126,15 +126,12 @@ export async function initializeCollections() {
     await db.collections.bulkAdd(newCols);
     console.log(`${newCols.length} collections initialisées.`);
   }
-
-  // Seed default vaccines rappels if completely empty (helps start using it)
-  await seedDefaultVaccinesIfEmpty();
 }
 
 /**
  * Seeds a few standard French vaccine recommendations if collection is empty
  */
-async function seedDefaultVaccinesIfEmpty() {
+export async function seedDefaultVaccinesIfEmpty() {
   try {
     const count = await db.records.where('collectionId').equals(VACCINS_COL_ID).count();
     if (count > 0) return;

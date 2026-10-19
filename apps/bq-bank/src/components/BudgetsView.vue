@@ -101,10 +101,12 @@ const budgetProgressList = computed(() => {
 
     const percent = limit > 0 ? (totalSpent / limit) * 100 : 0;
 
-    let barColorClass = 'bg-success';
-    if (percent > 100) {
+    let barColorClass = 'bg-primary';
+    if (percent === 0) {
+      barColorClass = 'bg-empty';
+    } else if (percent >= 100) {
       barColorClass = 'bg-danger';
-    } else if (percent > 75) {
+    } else if (percent >= 75) {
       barColorClass = 'bg-warning';
     }
 
@@ -124,8 +126,8 @@ const budgetProgressList = computed(() => {
   <div class="budgets-view">
     <div class="view-header">
       <div>
-        <h2>📊 Suivi des Budgets</h2>
-        <p class="text-secondary">Visualise tes enveloppes budgétaires sous forme de jauges et surveille tes dépenses mensuelles.</p>
+        <h2>Suivi des budgets</h2>
+        <p class="text-sub">Visualise tes enveloppes budgétaires sous forme de jauges et surveille tes dépenses mensuelles.</p>
       </div>
     </div>
 
@@ -154,13 +156,13 @@ const budgetProgressList = computed(() => {
       <!-- Left Column: Global Monthly Balance Card -->
       <div class="global-balance-col">
         <div class="card glass mb-4">
-          <h3 class="font-bold flex-row mb-4"><TrendingUp :size="18" class="text-primary" /> Synthèse Mensuelle</h3>
+          <h3 class="font-bold flex-row mb-4"><TrendingUp :size="18" /> Synthèse mensuelle</h3>
           
           <div class="monthly-metrics-stack">
             <div class="m-metric flex-row justify-between">
               <div class="flex-row gap-2">
                 <span class="icon-indicator success"><ArrowUpRight :size="16" /></span>
-                <span class="lbl font-bold text-sm text-secondary">Revenus (Entrées)</span>
+                <span class="lbl font-bold text-sm text-sub">Entrées</span>
               </div>
               <span class="val font-black text-md text-success">+{{ monthlyTotals.revenus.toFixed(2) }} €</span>
             </div>
@@ -168,7 +170,7 @@ const budgetProgressList = computed(() => {
             <div class="m-metric flex-row justify-between">
               <div class="flex-row gap-2">
                 <span class="icon-indicator danger"><ArrowDownLeft :size="16" /></span>
-                <span class="lbl font-bold text-sm text-secondary">Dépenses (Sorties)</span>
+                <span class="lbl font-bold text-sm text-sub">Sorties</span>
               </div>
               <span class="val font-black text-md text-danger">-{{ monthlyTotals.depenses.toFixed(2) }} €</span>
             </div>
@@ -184,8 +186,8 @@ const budgetProgressList = computed(() => {
 
         <div class="card glass info-budget-box">
           <h4 class="font-bold mb-2 text-xs uppercase text-primary">Comment gérer tes enveloppes ?</h4>
-          <p class="text-secondary text-sm leading-relaxed">
-            Pour ajuster tes limites budgétaires, vas dans l'onglet <strong>Garage/Options</strong>. Tu pourras y définir des plafonds mensuels réalistes adaptés à tes besoins !
+          <p class="text-sub text-sm leading-relaxed">
+            Pour ajuster tes limites budgétaires, vas dans l'onglet <strong>Paramètres</strong>. Tu pourras y définir des plafonds mensuels réalistes adaptés à tes besoins !
           </p>
         </div>
       </div>
@@ -193,7 +195,7 @@ const budgetProgressList = computed(() => {
       <!-- Right Column: Budget Envelopes Progress Gauges -->
       <div class="envelopes-col">
         <div class="card glass">
-          <h3 class="font-bold flex-row mb-4"><Calendar :size="18" class="text-accent" /> Enveloppes de Dépenses</h3>
+          <h3 class="font-bold flex-row mb-4"><Calendar :size="18" /> Enveloppes de dépenses</h3>
           
           <div v-if="budgetProgressList.length === 0" class="text-center py-4 text-muted text-sm">
             <p>Aucune enveloppe budgétaire configurée.</p>
@@ -202,7 +204,7 @@ const budgetProgressList = computed(() => {
           <div v-else class="envelopes-stack">
             <div v-for="b in budgetProgressList" :key="b.id" class="envelope-item">
               <div class="envelope-label-row flex-row justify-between font-bold text-sm mb-1">
-                <span class="env-name text-secondary">{{ b.nom }}</span>
+                <span class="env-name text-sub">{{ b.nom }}</span>
                 <span class="env-amounts">
                   <span :class="b.spent > b.limit ? 'text-danger' : 'text-primary'">{{ b.spent.toFixed(2) }} €</span>
                   <span class="text-muted"> / {{ b.limit.toFixed(2) }} €</span>
@@ -231,8 +233,8 @@ const budgetProgressList = computed(() => {
 
 <style scoped lang="scss">
 .month-selector-card {
-  border-color: rgba(59, 130, 246, 0.15);
-  background-color: rgba(59, 130, 246, 0.01);
+  border-color: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  background-color: color-mix(in srgb, var(--color-primary) 1%, transparent);
   padding: 0.75rem 1.25rem !important;
 }
 
@@ -252,7 +254,7 @@ const budgetProgressList = computed(() => {
 }
 
 .m-label {
-  color: #60a5fa;
+  color: var(--color-primary);
 }
 
 .budgets-dashboard-grid {
@@ -273,7 +275,7 @@ const budgetProgressList = computed(() => {
 }
 
 .m-metric {
-  background-color: rgba(255, 255, 255, 0.01);
+  background-color: color-mix(in srgb, var(--color-white) 1%, transparent);
   border: 1px solid var(--border-color);
   padding: 0.6rem 0.85rem;
   border-radius: var(--radius-sm);
@@ -288,18 +290,18 @@ const budgetProgressList = computed(() => {
   justify-content: center;
   
   &.success {
-    background-color: rgba(16, 185, 129, 0.1);
-    color: #34d399;
+    background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
+    color: var(--color-success);
   }
   &.danger {
-    background-color: rgba(239, 68, 68, 0.1);
-    color: #f87171;
+    background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
+    color: var(--color-danger);
   }
 }
 
 .info-budget-box {
-  border-color: rgba(59, 130, 246, 0.15);
-  background-color: rgba(59, 130, 246, 0.01);
+  border-color: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  background-color: color-mix(in srgb, var(--color-primary) 1%, transparent);
 }
 
 .envelopes-stack {
@@ -327,9 +329,10 @@ const budgetProgressList = computed(() => {
   border-radius: 4px;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   
-  &.bg-success { background-color: var(--color-primary); }
+  &.bg-primary { background-color: var(--color-primary); }
   &.bg-warning { background-color: var(--color-warning); }
   &.bg-danger { background-color: var(--color-danger); }
+  &.bg-empty { background-color: var(--color-grey); }
 }
 
 .border-top {
@@ -340,8 +343,8 @@ const budgetProgressList = computed(() => {
   padding-top: 0.75rem;
 }
 
-.text-success { color: #34d399 !important; }
-.text-danger { color: #f87171 !important; }
+.text-success { color: var(--color-success) !important; }
+.text-danger { color: var(--color-danger) !important; }
 
 .text-xs { font-size: 0.75rem; }
 .text-sm { font-size: 0.85rem; }

@@ -7,8 +7,10 @@ import {
   formatToFrenchDate 
 } from '../db/queries';
 import { Plus, X, Ruler, Scale, ArrowUpRight, ArrowDownLeft } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
+const toast = useToast();
 
 const metrics = ref<RecordEntry[]>([]);
 const isLoading = ref(true);
@@ -114,7 +116,7 @@ const weightProgression = computed(() => {
 const handleAddMetric = async () => {
   const p = Number(formMetric.value.poids) || 0;
   if (p <= 0) {
-    alert('Veuillez saisir un poids valide supérieur à 0.');
+    toast.warning('Veuillez saisir un poids valide supérieur à 0.');
     return;
   }
 
@@ -148,7 +150,7 @@ const handleAddMetric = async () => {
     };
     emit('data-updated');
     loadData();
-    alert('Mesures corporelles enregistrées !');
+    toast.success('Mesures corporelles enregistrées !');
   } catch (err) {
     console.error(err);
   }
@@ -156,7 +158,6 @@ const handleAddMetric = async () => {
 
 // Delete record
 const handleDeleteMetric = async (id: string) => {
-  if (!confirm('Supprimer cette fiche de mesures corporelles ?')) return;
   try {
     await db.records.update(id, {
       deletedAt: Date.now(),
@@ -174,8 +175,8 @@ const handleDeleteMetric = async (id: string) => {
   <div class="mensurations-view">
     <div class="view-header">
       <div>
-        <h2>📏 Poids & Mensurations</h2>
-        <p class="text-secondary">Enregistre régulièrement ton poids, ta taille historique de carnet de santé et tes mensurations de couture.</p>
+        <h2>Poids & mensurations</h2>
+        <p class="text-sub">Enregistre régulièrement ton poids, ta taille historique de carnet de santé et tes mensurations de couture.</p>
       </div>
       <div class="view-actions">
         <button @click="showAddModal = true" class="btn btn-primary">
@@ -205,7 +206,7 @@ const handleDeleteMetric = async (id: string) => {
           <span class="badge font-bold mt-2" :class="imcDetails.categoryColor === 'text-success' ? 'badge-success' : 'badge-warning'">
             {{ imcDetails.category }}
           </span>
-          <p class="text-secondary text-xs mt-3">{{ imcDetails.desc }}</p>
+          <p class="text-sub text-xs mt-3">{{ imcDetails.desc }}</p>
           <div class="imc-base-info mt-3 text-xs text-muted">
             Basé sur ton poids actuel de {{ imcDetails.weight }} kg et ta taille de {{ imcDetails.height }} cm.
           </div>
@@ -215,7 +216,7 @@ const handleDeleteMetric = async (id: string) => {
         <div class="card glass progression-card mb-4 flex-row justify-between" v-if="weightProgression">
           <div class="prog-info">
             <span class="lbl font-bold text-xs text-muted block uppercase">Évolution de Poids</span>
-            <p class="text-secondary text-xs mt-1">Par rapport au relevé précédent :</p>
+            <p class="text-sub text-xs mt-1">Par rapport au relevé précédent :</p>
           </div>
           
           <div class="prog-val flex-row font-black text-lg" :class="weightProgression.isLoss ? 'text-success' : 'text-danger'">
@@ -227,25 +228,25 @@ const handleDeleteMetric = async (id: string) => {
 
         <!-- Sizing Cheat Sheet -->
         <div class="card glass sizing-cheat-card" v-if="latestLog">
-          <h3 class="font-bold flex-row text-sm mb-3"><Ruler :size="16" class="text-accent" /> Aide-Mémoire Shopping</h3>
-          <p class="text-secondary text-xs mb-3">Tes dernières mensurations de couture (pratique pour l'achat de vêtements) :</p>
+          <h3 class="font-bold flex-row text-sm mb-3"><Ruler :size="16" class="text-sub" /> Aide-Mémoire Shopping</h3>
+          <p class="text-sub text-xs mb-3">Tes dernières mensurations de couture (pratique pour l'achat de vêtements) :</p>
 
           <div class="sizing-sheet-table text-sm">
             <div class="sizing-row flex-row justify-between mb-2">
-              <span class="lbl text-secondary font-bold">Tour de taille :</span>
-              <span class="val font-black text-accent">{{ latestLog.data.tour_taille ? latestLog.data.tour_taille + ' cm' : '-' }}</span>
+              <span class="lbl text-sub font-bold">Tour de taille :</span>
+              <span class="val font-black text-sub">{{ latestLog.data.tour_taille ? latestLog.data.tour_taille + ' cm' : '-' }}</span>
             </div>
             <div class="sizing-row flex-row justify-between mb-2">
-              <span class="lbl text-secondary font-bold">Tour d'épaules :</span>
-              <span class="val font-black text-accent">{{ latestLog.data.tour_epaules ? latestLog.data.tour_epaules + ' cm' : '-' }}</span>
+              <span class="lbl text-sub font-bold">Tour d'épaules :</span>
+              <span class="val font-black text-sub">{{ latestLog.data.tour_epaules ? latestLog.data.tour_epaules + ' cm' : '-' }}</span>
             </div>
             <div class="sizing-row flex-row justify-between mb-2">
-              <span class="lbl text-secondary font-bold">Tour de poitrine :</span>
-              <span class="val font-black text-accent">{{ latestLog.data.tour_poitrine ? latestLog.data.tour_poitrine + ' cm' : '-' }}</span>
+              <span class="lbl text-sub font-bold">Tour de poitrine :</span>
+              <span class="val font-black text-sub">{{ latestLog.data.tour_poitrine ? latestLog.data.tour_poitrine + ' cm' : '-' }}</span>
             </div>
             <div class="sizing-row flex-row justify-between">
-              <span class="lbl text-secondary font-bold">Tour de cuisse :</span>
-              <span class="val font-black text-accent">{{ latestLog.data.tour_cuisses ? latestLog.data.tour_cuisses + ' cm' : '-' }}</span>
+              <span class="lbl text-sub font-bold">Tour de cuisse :</span>
+              <span class="val font-black text-sub">{{ latestLog.data.tour_cuisses ? latestLog.data.tour_cuisses + ' cm' : '-' }}</span>
             </div>
           </div>
         </div>
@@ -291,7 +292,7 @@ const handleDeleteMetric = async (id: string) => {
     <div v-if="showAddModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>📏 Saisir des Mesures Corporelles</h3>
+          <h3>Saisir des mesures corporelles</h3>
           <button @click="showAddModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
@@ -357,12 +358,12 @@ const handleDeleteMetric = async (id: string) => {
 }
 
 .imc-card {
-  border-color: rgba(6, 182, 212, 0.2);
-  background-color: rgba(6, 182, 212, 0.02);
+  border-color: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  background-color: color-mix(in srgb, var(--color-accent) 2%, transparent);
 }
 
 .sizing-sheet-table {
-  background-color: rgba(15, 23, 42, 0.4);
+  background-color: var(--bg-glass);
   padding: 0.75rem 1rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
@@ -376,7 +377,7 @@ const handleDeleteMetric = async (id: string) => {
 
 .history-metric-item {
   border: 1px solid var(--border-color);
-  background-color: rgba(255, 255, 255, 0.01);
+  background-color: color-mix(in srgb, var(--color-white) 1%, transparent);
   border-radius: var(--radius-sm);
   padding: 0.75rem 1rem;
 }
@@ -397,7 +398,7 @@ const handleDeleteMetric = async (id: string) => {
   flex-direction: column;
   
   .lbl { color: var(--text-muted); font-weight: 700; }
-  .val { color: var(--text-secondary); }
+  .val { color: var(--text-sub); }
 }
 
 .delete-link {
@@ -419,8 +420,8 @@ const handleDeleteMetric = async (id: string) => {
   gap: 1rem;
 }
 
-.text-success { color: #34d399 !important; }
-.text-danger { color: #f87171 !important; }
+.text-success { color: var(--color-success) !important; }
+.text-danger { color: var(--color-danger) !important; }
 
 .text-xs { font-size: 0.75rem; }
 .text-sm { font-size: 0.85rem; }

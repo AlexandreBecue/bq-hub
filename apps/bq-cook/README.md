@@ -75,4 +75,39 @@ npm run build
 ```
 
 ---
+
+## 📋 Feuille de Route / TODO (Héritage `TabZoindKoi`)
+
+Fonctionnalités identifiées lors de la transition depuis le brouillon historique `tabzoindkoi` et prévues pour les prochaines itérations :
+
+- [ ] **Génération de la liste de courses basée sur les repas planifiés** :
+  - *Actuel* : La liste de courses n'affiche que les produits dont le stock actuel est inférieur au seuil d'alerte.
+  - *Objectif* : Agréger automatiquement les ingrédients nécessaires aux repas programmés dans le planning :
+    $$\text{Quantité à acheter} = \max(0, \text{Seuil} - \text{Stock}) + \sum (\text{Ingrédients des repas prévus} \times \text{Convives})$$
+
+- [ ] **Validation directe de la check-list vers les stocks (sans ticket)** :
+  - *Actuel* : L'incrémentation des stocks en rayon repose exclusivement sur l'import texte de ticket de caisse.
+  - *Objectif* : Ajouter un bouton « Valider le caddie » permettant de transférer directement les articles cochés dans l'inventaire en augmentant leurs quantités en stock.
+
+- [ ] **Gestion des produits spécifiques / achats ponctuels (`KESKIMANQUE ?`)** :
+  - *Actuel* : Tout article sur la liste doit obligatoirement exister comme fiche permanente dans l'inventaire `Stocks`.
+  - *Objectif* : Pouvoir insérer des articles ponctuels ou hors-catalogue (ex. : sushis, pastèque, ampoule, produit ménager exceptionnel) avec nom, quantité, prix estimé et rayon directement dans la liste de courses.
+
+- [ ] **Arrondi intelligent au conditionnement commercial (`/+`)** :
+  - *Actuel* : Gestion linéaire brute des quantités en stock.
+  - *Objectif* : Calculer le nombre de paquets réels à acheter en rayon selon la contenance unitaire du produit (ex. : besoin de 300 g de pâtes vendues en paquets de 250 g $\rightarrow$ acheter 2 paquets).
+
+- [ ] **Estimation du budget total du panier de courses** :
+  - *Actuel* : Les prix ne sont visibles que sur l'historique des achats passés.
+  - *Objectif* : Calculer et afficher le montant total prévisionnel du panier de courses en temps réel à partir des derniers prix unitaires enregistrés.
+
+- [ ] **Cycle de réapprovisionnement & Faisabilité temporelle** :
+  - *Actuel* : Le statut de faisabilité d'une recette ne tient compte que du stock instantané.
+  - *Objectif* : Configurer un cycle de courses régulier (ex. : le jeudi toutes les 2 semaines). Les alertes de rupture sur les repas ne s'activent que pour les repas ayant lieu *avant* le prochain jour de réapprovisionnement programmé.
+
+- [ ] **Gestion des membres du foyer / Mangeurs multiples** :
+  - *Actuel* : Un simple champ numérique global « Convives ».
+  - *Objectif* : Permettre de spécifier individuellement qui mange à chaque repas (avec option « Tous ») pour affiner la personnalisation des menus et des portions.
+
+---
 *Développé avec ❤️ pour simplifier ton quotidien culinaire.*

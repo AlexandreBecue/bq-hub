@@ -3,6 +3,9 @@ import { ref, onMounted } from 'vue';
 import { db, generateId, type RecordEntry } from '../db';
 import { STOCK_COL_ID, getStockRecords } from '../db/queries';
 import { Plus, Trash2, Edit2, AlertCircle, Check, X } from '@lucide/vue';
+import { useToast } from '@bq/theme/useToast';
+
+const toast = useToast();
 
 const stocks = ref<RecordEntry[]>([]);
 const showAddModal = ref(false);
@@ -55,7 +58,7 @@ const openEditModal = (rec: RecordEntry) => {
 
 const handleSaveStock = async () => {
   if (!formNom.value.trim()) {
-    alert('Le nom du produit est obligatoire.');
+    toast.warning('Le nom du produit est obligatoire.');
     return;
   }
 
@@ -93,14 +96,12 @@ const handleSaveStock = async () => {
 };
 
 const handleDeleteStock = async (id: string) => {
-  if (confirm('Es-tu sûr de vouloir supprimer ce produit de l\'inventaire ?')) {
     try {
       await db.records.update(id, { deletedAt: Date.now(), updatedAt: Date.now() });
       await loadData();
     } catch (err) {
       console.error('Erreur lors de la suppression:', err);
     }
-  }
 };
 </script>
 
@@ -108,11 +109,11 @@ const handleDeleteStock = async (id: string) => {
   <div class="stocks-view">
     <div class="view-header-row">
       <div class="title-sub">
-        <h2>Mon Inventaire de Stocks</h2>
-        <p class="desc">Gère les quantités réelles de tes ingrédients et herbes</p>
+        <h2>Mon inventaire de stocks</h2>
+        <p class="desc">Gère les quantités réelles de tes ingrédients et produits d'hygiène</p>
       </div>
       <button @click="openAddModal" class="btn btn-primary btn-sm">
-        <Plus class="btn-icon" /> Ajouter un ingrédient
+        <Plus class="btn-icon" /> Ajouter un produit
       </button>
     </div>
 
@@ -138,7 +139,7 @@ const handleDeleteStock = async (id: string) => {
               v-else 
               v-for="rec in stocks" 
               :key="rec.id"
-              :class="{ 'alert-row': Number(rec.data.quantite) <= Number(rec.data.seuil_d_alerte) }"
+              :class="{ 'alert-row': Number(rec.data.quantite) < Number(rec.data.seuil_d_alerte) }"
             >
               <td>
                 <span class="stock-name">{{ rec.data.nom }}</span>
@@ -154,7 +155,7 @@ const handleDeleteStock = async (id: string) => {
               </td>
               <td class="text-center">
                 <span 
-                  v-if="Number(rec.data.quantite) <= Number(rec.data.seuil_d_alerte)" 
+                  v-if="Number(rec.data.quantite) < Number(rec.data.seuil_d_alerte)" 
                   class="status-badge alert"
                 >
                   <AlertCircle class="status-icon" /> À acheter
@@ -165,10 +166,10 @@ const handleDeleteStock = async (id: string) => {
               </td>
               <td class="text-right">
                 <div class="cell-actions inline-actions">
-                  <button @click="openEditModal(rec)" class="btn-action-round edit" title="Modifier">
+                  <button @click="openEditModal(rec)" class="action-btn edit" title="Modifier">
                     <Edit2 class="action-icon" />
                   </button>
-                  <button @click="handleDeleteStock(rec.id!)" class="btn-action-round delete" title="Supprimer">
+                  <button @click="handleDeleteStock(rec.id!)" class="action-btn delete" title="Supprimer">
                     <Trash2 class="action-icon" />
                   </button>
                 </div>
@@ -203,7 +204,7 @@ const handleDeleteStock = async (id: string) => {
                     </option>
                   </select>
                 </div>
-                <div class="form-group flex-1 ml-3" style="max-width: 140px;">
+                <div class="form-group flex-1 ml-3 col-unite">
                   <label for="stockUnite">Unité d'usage</label>
                   <input id="stockUnite" v-model="formUnite" type="text" class="form-control" placeholder="unité, g, L" />
                 </div>
@@ -254,24 +255,24 @@ const handleDeleteStock = async (id: string) => {
   }
   
   th {
-    background-color: rgba(0, 0, 0, 0.15);
+    background-color: color-mix(in srgb, var(--color-black) 15%, transparent);
     font-size: 0.9rem;
     font-weight: 700;
-    color: var(--text-secondary);
+    color: var(--text-sub);
   }
   
   tr {
     transition: var(--transition);
     
     &:hover {
-      background-color: rgba(255, 255, 255, 0.015);
+      background-color: color-mix(in srgb, var(--color-white) 2%, transparent);
     }
     
     &.alert-row {
-      background-color: rgba(239, 68, 68, 0.02);
+      background-color: color-mix(in srgb, var(--color-danger) 2%, transparent);
       
       &:hover {
-        background-color: rgba(239, 68, 68, 0.04);
+        background-color: color-mix(in srgb, var(--color-danger) 4%, transparent);
       }
     }
   }
@@ -286,7 +287,7 @@ const handleDeleteStock = async (id: string) => {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-muted);
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: color-mix(in srgb, var(--color-white) 4%, transparent);
   border: 1px solid var(--border-color);
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm);
@@ -308,21 +309,25 @@ const handleDeleteStock = async (id: string) => {
   border: 1px solid transparent;
   
   &.alert {
-    background-color: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
-    border-color: #ef4444;
+    background-color: color-mix(in srgb, var(--color-danger) 15%, transparent);
+    color: var(--color-danger);
+    border-color: color-mix(in srgb, var(--color-danger) 20%, transparent);
   }
   
   &.ok {
-    background-color: rgba(16, 185, 129, 0.15);
-    color: #10b981;
-    border-color: #10b981;
+    background-color: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+    border-color: color-mix(in srgb, var(--color-success) 20%, transparent);
   }
   
   .status-icon {
     width: 12px;
     height: 12px;
   }
+}
+
+.col-unite {
+  max-width: 140px;
 }
 
 .cell-actions.inline-actions {

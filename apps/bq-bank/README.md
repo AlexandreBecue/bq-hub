@@ -46,7 +46,6 @@ L'application utilise une base IndexedDB locale hors-ligne (`BQBankDatabase`) et
 
 2. **`Comptes Bancaires` (ID : `col-c9mpt3s`)**
    * `nom` (text, required)
-   * `solde_initial` (number)
    * `is_active` (boolean)
 
 3. **`Enveloppes Budgétaires` (ID : `col-b8dg3ts`)**

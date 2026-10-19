@@ -2,32 +2,137 @@
 :root {
   --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   
-  /* Color Palette (Deep dark theme with vibrant accents) */
-  --bg-primary: #0b0f19;
-  --bg-secondary: #131a26;
-  --bg-tertiary: #1b2536;
-  --bg-card: rgba(22, 30, 49, 0.7);
-  --bg-glass: rgba(15, 23, 42, 0.6);
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(59, 130, 246, 0.3);
+  /* Text Colors (Typography hierarchy) */
+  --color-text-main: #f8fafc;    /* Slate 50 - Titres et contenu principal */
+  --color-text-sub: #94a3b8;     /* Slate 400 - Sous-titres, descriptions, labels */
+  --color-text-muted: #64748b;   /* Slate 500 - Dates, hints, textes estompés */
   
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  /* Surfaces & Background Colors */
+  --color-bg-page: #0b0f19;      /* Fond de page global */
+  --color-bg-surface: #131a26;   /* Surfaces en relief (header, bottom-nav) */
+  --color-bg-card: rgba(22, 30, 49, 0.7);  /* Fond standard des cartes */
+  --color-bg-glass: rgba(15, 23, 42, 0.6); /* Fond translucide effet flouté */
   
-  --color-primary: #3b82f6; /* Electric Blue */
-  --color-primary-hover: #2563eb;
-  --color-primary-rgb: 59, 130, 246;
-  
-  --color-accent: #a855f7; /* Vibrant Purple */
-  --color-accent-hover: #9333ea;
-  
-  --color-success: #10b981; /* Emerald */
-  --color-warning: #f59e0b; /* Amber */
-  --color-danger: #ef4444; /* Rose */
-  --color-info: #06b6d4; /* Cyan */
+  /* Neutral Color (Boutons neutres, badges discrets) */
+  --color-neutral: #1b2536;
+  --color-neutral-hover: #334155;
 
-  /* Spacing & Borders */
+  /* Border Colors */
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-hover: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  
+  /* Unified Base Palette */
+  --color-blue: #3b82f6;
+  --color-blue-hover: #2563eb;
+  --color-blue-contrast: #ffffff;
+  
+  --color-green: #10b981;
+  --color-green-hover: #059669;
+  --color-green-contrast: #ffffff;
+  
+  --color-red: #ef4444;
+  --color-red-hover: #dc2626;
+  --color-red-contrast: #ffffff;
+  
+  --color-terracotta: #b45309;
+  --color-terracotta-hover: #92400e;
+  --color-terracotta-contrast: #ffffff;
+
+  --color-orange: #f59e0b;
+  --color-orange-hover: #d97706;
+  --color-orange-contrast: #0b0f19;
+  
+  --color-yellow: #eab308;
+  --color-yellow-hover: #ca8a04;
+  --color-yellow-contrast: #0b0f19;
+  
+  --color-purple: #a855f7;
+  --color-purple-hover: #9333ea;
+  --color-purple-contrast: #ffffff;
+  
+  --color-pink: #ec4899;
+  --color-pink-hover: #db2777;
+  --color-pink-contrast: #ffffff;
+  
+  --color-grey: #64748b;
+  --color-grey-hover: #475569;
+  --color-grey-contrast: #ffffff;
+  
+  --color-white: #ffffff;
+  --color-white-hover: #e5e7eb;
+  --color-white-contrast: #0b0f19;
+
+  --color-black: #000000;
+  --color-black-hover: #0a0a0a;
+  --color-black-contrast: #ffffff;
+
+  /* Unified Semantic Colors */
+  --color-success: var(--color-green);
+  --color-success-hover: var(--color-green-hover);
+  --color-success-contrast: var(--color-green-contrast);
+  
+  --color-warning: var(--color-orange);
+  --color-warning-hover: var(--color-orange-hover);
+  --color-warning-contrast: var(--color-orange-contrast);
+  
+  --color-danger: var(--color-red);
+  --color-danger-hover: var(--color-red-hover);
+  --color-danger-contrast: var(--color-red-contrast);
+  
+  --color-info: var(--color-blue);
+  --color-info-hover: var(--color-blue-hover);
+  --color-info-contrast: var(--color-blue-contrast);
+
+  /* Application Brand Colors */
+  --color-bq-bank: #60a5fa;
+  --color-bq-bank-hover: #3b82f6;
+  --color-bq-bank-contrast: #ffffff;
+  
+  --color-bq-car: #fc8181;
+  --color-bq-car-hover: #ef4444;
+  --color-bq-car-contrast: #ffffff;
+  
+  --color-bq-cloth: #c5a880;
+  --color-bq-cloth-hover: #c5a880;
+  --color-bq-cloth-contrast: #0b0f19;
+  
+  --color-bq-coach: #f97316;
+  --color-bq-coach-hover: #f43f5e;
+  --color-bq-coach-contrast: #ffffff;
+  
+  --color-bq-cook: #facc15;
+  --color-bq-cook-hover: #eab308;
+  --color-bq-cook-contrast: #0b0f19;
+  
+  --color-bq-graph: #22d3ee;
+  --color-bq-graph-hover: #06b6d4;
+  --color-bq-graph-contrast: #0b0f19;
+  
+  --color-bq-health: #34d399;
+  --color-bq-health-hover: #10b981;
+  --color-bq-health-contrast: #0b0f19;
+  
+  --color-bq-learn: #f4abba;
+  --color-bq-learn-hover: #ea596e;
+  --color-bq-learn-contrast: #0b0f19;
+  
+  --color-bq-play: #a78bfa;
+  --color-bq-play-hover: #6d28d9;
+  --color-bq-play-contrast: #0b0f19;
+
+  --color-bq-watch: #f43f5e;
+  --color-bq-watch-hover: #e11d48;
+  --color-bq-watch-contrast: #ffffff;
+
+  /* Fallback App Theme Colors */
+  --color-primary: var(--color-yellow);
+  --color-primary-hover: var(--color-yellow-hover);
+  --color-primary-contrast: var(--color-yellow-contrast);
+  --color-secondary: var(--color-purple);
+  --color-secondary-hover: var(--color-purple-hover);
+  --color-secondary-contrast: var(--color-purple-contrast);
+
+  /* Spacing, Radius & Shadows */
   --radius-sm: 6px;
   --radius-md: 12px;
   --radius-lg: 18px;
@@ -36,7 +141,30 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-  --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.15);
+  --shadow-glow: 0 0 20px color-mix(in srgb, var(--color-primary) 18%, transparent);
   
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Backward Compatibility Aliases during migration */
+  --bg-primary: var(--color-bg-page);
+  --bg-secondary: var(--color-bg-surface);
+  --bg-tertiary: var(--color-neutral);
+  --bg-card: var(--color-bg-card);
+  --bg-glass: var(--color-bg-glass);
+  --border-color: var(--color-border);
+  --border-hover: var(--color-border-hover);
+  --text-primary: var(--color-text-main);
+  --text-secondary: var(--color-text-sub);
+  --text-muted: var(--color-text-muted);
+  --text-main: var(--color-text-main);
+  --text-sub: var(--color-text-sub);
+}
+
+/* SCSS Helper: Choisir la couleur du texte en fonction de la luminance du fond */
+@function bq-contrast-color($bg, $dark: #0f172a, $light: #f8fafc) {
+  @if (lightness($bg) > 60%) {
+    @return $dark;
+  } @else {
+    @return $light;
+  }
 }

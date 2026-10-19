@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { db, generateId, type RecordEntry } from '../db/index';
 import { LUDOTHEQUE_COL_ID, getLudothequeRecords } from '../db/queries';
-import { Search, Plus, Trash2, Edit2, ShieldAlert, X } from '@lucide/vue';
+import { Search, Plus, Trash2, Edit2, ShieldAlert, X, Users, Clock, Monitor, Trophy, Check, Bookmark } from '@lucide/vue';
 
 const emit = defineEmits(['data-updated']);
 
@@ -159,7 +159,6 @@ const handleUpdateGame = async () => {
 
 // Delete Game
 const handleDeleteGame = async (id: string) => {
-  if (!confirm('Supprimer définitivement ce jeu de ta ludothèque ? (Cela n\'effacera pas son historique de parties)')) return;
   try {
     await db.records.update(id, {
       deletedAt: Date.now(),
@@ -177,12 +176,12 @@ const handleDeleteGame = async (id: string) => {
   <div class="ludotheque-view">
     <div class="view-header">
       <div>
-        <h2>🎮 Ma Ludothèque</h2>
-        <p class="text-secondary">Explore ton inventaire fusionné de jeux de société et de jeux vidéo au même endroit.</p>
+        <h2>Ludothèque</h2>
+        <p class="text-sub">Explore ton inventaire fusionné de jeux de société et de jeux vidéo.</p>
       </div>
       <div class="view-actions">
         <button @click="openAddModal" class="btn btn-primary">
-          <Plus :size="18" /> Nouveau Jeu
+          <Plus :size="18" /> Nouveau jeu
         </button>
       </div>
     </div>
@@ -202,8 +201,8 @@ const handleDeleteGame = async (id: string) => {
         
         <select v-model="typeFilter" class="select">
           <option value="">Tous les types</option>
-          <option value="Jeux de société">Jeux de société 🎲</option>
-          <option value="Jeux vidéo">Jeux vidéo 🎮</option>
+          <option value="Jeux de société">Jeux de société</option>
+          <option value="Jeux vidéo">Jeux vidéo</option>
         </select>
         
         <select v-model="progressFilter" class="select" :disabled="typeFilter === 'Jeux de société'">
@@ -216,7 +215,7 @@ const handleDeleteGame = async (id: string) => {
     <!-- Games Display -->
     <div v-if="isLoading" class="loading-state card glass">
       <div class="spinner"></div>
-      <p class="mt-2 text-secondary text-center">Chargement de ta ludothèque...</p>
+      <p class="mt-2 text-sub text-center">Chargement de ta ludothèque...</p>
     </div>
 
     <div v-else-if="filteredGames.length === 0" class="empty-state card glass text-center">
@@ -239,10 +238,10 @@ const handleDeleteGame = async (id: string) => {
               {{ g.data.type_jeu }}
             </span>
             <div class="game-actions">
-              <button @click="openEditModal(g)" class="icon-btn" title="Modifier">
+              <button @click="openEditModal(g)" class="action-btn edit" title="Modifier">
                 <Edit2 :size="14" />
               </button>
-              <button @click="handleDeleteGame(g.id!)" class="icon-btn delete-btn" title="Supprimer">
+              <button @click="handleDeleteGame(g.id!)" class="action-btn delete" title="Supprimer">
                 <Trash2 :size="14" />
               </button>
             </div>
@@ -251,25 +250,37 @@ const handleDeleteGame = async (id: string) => {
           <div class="game-card-body mt-2">
             <h4 class="game-title font-bold text-md leading-tight">{{ g.data.nom }}</h4>
             
-            <div class="game-metrics mt-3 text-xs text-secondary leading-relaxed">
+            <div class="game-metrics mt-3 text-xs text-sub leading-relaxed">
               <!-- Board game metrics -->
               <div v-if="g.data.type_jeu === 'Jeux de société'">
-                <p v-if="g.data.min_players">👥 Joueurs : <strong>{{ g.data.min_players }} - {{ g.data.max_players }}</strong></p>
-                <p v-if="g.data.playtime">⏱️ Durée : <strong>{{ g.data.playtime }} min</strong></p>
+                <p v-if="g.data.min_players" class="flex-row align-center gap-1">
+                  <Users :size="13" /> Joueurs : <strong>{{ g.data.min_players }} - {{ g.data.max_players }}</strong>
+                </p>
+                <p v-if="g.data.playtime" class="flex-row align-center gap-1">
+                  <Clock :size="13" /> Durée : <strong>{{ g.data.playtime }} min</strong>
+                </p>
               </div>
               
               <!-- Video game metrics -->
               <div v-else>
-                <p v-if="g.data.plateforme">🖥️ Plateforme : <strong>{{ g.data.plateforme }}</strong></p>
-                <p v-if="g.data.progression">🏆 Progression : <strong class="text-accent">{{ g.data.progression }}</strong></p>
+                <p v-if="g.data.plateforme" class="flex-row align-center gap-1">
+                  <Monitor :size="13" /> Plateforme : <strong>{{ g.data.plateforme }}</strong>
+                </p>
+                <p v-if="g.data.progression" class="flex-row align-center gap-1">
+                  <Trophy :size="13" /> Progression : <strong class="text-sub">{{ g.data.progression }}</strong>
+                </p>
               </div>
             </div>
           </div>
 
           <div class="game-card-footer border-top pt-2 mt-4 flex-row justify-between text-xs text-muted">
             <span>{{ g.data.possede !== false ? 'Dans ma collection' : 'Backlog / Souhait' }}</span>
-            <span v-if="g.data.possede !== false">🟢 Possédé</span>
-            <span v-else>⚪ Wishlist</span>
+            <span v-if="g.data.possede !== false" class="badge badge-success flex-row align-center gap-1">
+              <Check :size="12" /> Possédé
+            </span>
+            <span v-else class="badge badge-neutral flex-row align-center gap-1">
+              <Bookmark :size="12" /> Wishlist
+            </span>
           </div>
         </div>
       </div>
@@ -279,7 +290,7 @@ const handleDeleteGame = async (id: string) => {
     <div v-if="showAddModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>➕ Ajouter un Jeu</h3>
+          <h3>➕ Ajouter un jeu</h3>
           <button @click="showAddModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
@@ -337,7 +348,7 @@ const handleDeleteGame = async (id: string) => {
                 <input type="checkbox" v-model="formGame.possede" />
                 <span class="slider"></span>
               </label>
-              <span class="text-secondary font-bold text-sm">Possédé physiquement / Acheté</span>
+              <span class="text-sub font-bold text-sm">Possédé</span>
             </div>
           </div>
         </div>
@@ -354,7 +365,7 @@ const handleDeleteGame = async (id: string) => {
     <div v-if="showEditModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>✏️ Modifier le Jeu</h3>
+          <h3>✏️ Modifier le jeu</h3>
           <button @click="showEditModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
@@ -412,7 +423,7 @@ const handleDeleteGame = async (id: string) => {
                 <input type="checkbox" v-model="formGame.possede" />
                 <span class="slider"></span>
               </label>
-              <span class="text-secondary font-bold text-sm">Possédé physiquement / Acheté</span>
+              <span class="text-sub font-bold text-sm">Possédé</span>
             </div>
           </div>
         </div>
@@ -475,26 +486,6 @@ const handleDeleteGame = async (id: string) => {
 .game-actions {
   display: flex;
   gap: 0.25rem;
-}
-
-.icon-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  padding: 0.35rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: var(--transition);
-  
-  &:hover {
-    color: var(--text-primary);
-    background-color: var(--border-hover);
-  }
-  
-  &.delete-btn:hover {
-    color: var(--color-danger);
-    background-color: rgba(239, 68, 68, 0.1);
-  }
 }
 
 .game-title {

@@ -8,10 +8,16 @@
     "packages/*"
   ],
   "scripts": {
+    "dev:bank": "npm run dev -w bq-bank",
     "dev:car": "npm run dev -w bq-car",
+    "dev:cloth": "npm run dev -w bq-cloth",
     "dev:coach": "npm run dev -w bq-coach",
     "dev:cook": "npm run dev -w bq-cook",
-    "dev:metrics": "npm run dev -w bq-metrics",
+    "dev:graph": "npm run dev -w bq-graph",
+    "dev:health": "npm run dev -w bq-health",
+    "dev:learn": "npm run dev -w bq-learn",
+    "dev:play": "npm run dev -w bq-play",
+    "dev:watch": "npm run dev -w bq-watch",
     "build": "npm run build --workspaces --if-present"
   },
   "engines": {
