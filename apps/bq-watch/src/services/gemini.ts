@@ -168,6 +168,7 @@ RÈGLES DE CONVERSATION :
 
 /**
  * Direct execution of Gemini API with the exact user-selected model.
+ * Includes automatic retry on transient overload errors (HTTP 503).
  */
 async function callGeminiApi(
   body: any,
@@ -185,25 +186,54 @@ async function callGeminiApi(
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
+  let attempts = 0;
+  const maxAttempts = 2;
 
-  if (!res.ok) {
-    const errText = await res.text();
-    let parsedMsg = errText;
+  while (attempts < maxAttempts) {
+    attempts++;
     try {
-      const jsonErr = JSON.parse(errText);
-      if (jsonErr.error?.message) {
-        parsedMsg = jsonErr.error.message;
-      }
-    } catch {}
-    throw new Error(`Erreur API Gemini pour le modèle "${model}" (${res.status}): ${parsedMsg}`);
-  }
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
 
-  return await res.json();
+      if (res.ok) {
+        return await res.json();
+      }
+
+      // Si erreur 503 (saturation temporaire des serveurs), attendre 1.5s et retenter
+      if (res.status === 503 && attempts < maxAttempts) {
+        console.warn(`Serveur Gemini en forte demande (503). Nouvelle tentative dans 1.5s (essai ${attempts}/${maxAttempts})...`);
+        await new Promise(r => setTimeout(r, 1500));
+        continue;
+      }
+
+      const errText = await res.text();
+      let parsedMsg = errText;
+      try {
+        const jsonErr = JSON.parse(errText);
+        if (jsonErr.error?.message) {
+          parsedMsg = jsonErr.error.message;
+        }
+      } catch {}
+
+      if (res.status === 503) {
+        throw new Error(`503_UNAVAILABLE: ${parsedMsg}`);
+      }
+
+      throw new Error(`Erreur API Gemini pour le modèle "${model}" (${res.status}): ${parsedMsg}`);
+    } catch (err: any) {
+      if (err.message && (err.message.startsWith('503_UNAVAILABLE') || err.message.startsWith('Erreur API Gemini'))) {
+        throw err;
+      }
+      if (attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 1500));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 /**

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import type { MovieRecord, TMDBMediaResult, ChatMessage } from '../types';
-import { saveMovie, saveViewing, getAllReviewsForAIContext, deleteMovie, getMovies } from '../db/queries';
+import { saveMovie, saveViewing, getSimilarReviewsForAIContext, deleteMovie, getMovies } from '../db/queries';
 import { searchTMDB, getPosterUrl } from '../services/tmdb';
 import { sendDebriefMessage, generateFinalReviewAndRating, getGeminiApiKey, getGeminiModel, getUserProfile } from '../services/gemini';
 import { getExpressTags } from '../services/tags';
@@ -218,7 +218,10 @@ async function handleSendMessage() {
       .filter(m => m.id !== 'msg-0')
       .map(m => ({ role: m.sender === 'user' ? 'user' as const : 'model' as const, text: m.text }));
 
-    const userContext = await getAllReviewsForAIContext(profile.name);
+    const userContext = await getSimilarReviewsForAIContext(
+      { titre: movieTitle.value || 'Film', type: selectedType.value, genres: movieGenres.value },
+      profile.name
+    );
     const reply = await sendDebriefMessage(history, movieTitle.value || 'Film', userContext);
 
     chatMessages.value.push({
@@ -229,7 +232,11 @@ async function handleSendMessage() {
     });
   } catch (err: any) {
     console.error('Erreur technique Gemini (Débrief) :', err);
-    toast.error('Impossible de contacter l\'IA. Vérifie dans les Paramètres que ta clé API est active et redétecte les modèles.');
+    if (err.message && (err.message.includes('503') || err.message.includes('high demand') || err.message.includes('UNAVAILABLE'))) {
+      toast.error('Les serveurs Google Gemini sont temporairement saturés (503). Réessaie dans quelques instants.');
+    } else {
+      toast.error('Impossible de contacter l\'IA. Vérifie dans les Paramètres que ta clé API est active et redétecte les modèles.');
+    }
   } finally {
     isAILoading.value = false;
   }
@@ -252,7 +259,10 @@ async function handleGenerateReview() {
       role: m.sender === 'user' ? 'user' as const : 'model' as const,
       text: m.text
     }));
-    const userContext = await getAllReviewsForAIContext(profile.name);
+    const userContext = await getSimilarReviewsForAIContext(
+      { titre: movieTitle.value || 'Film', type: selectedType.value, genres: movieGenres.value },
+      profile.name
+    );
     const res = await generateFinalReviewAndRating(history, movieTitle.value || 'Film', userContext);
 
     generatedAvis.value = res.avis;
@@ -261,7 +271,11 @@ async function handleGenerateReview() {
     toast.success('Synthèse et note suggérées avec succès ! ✨');
   } catch (err: any) {
     console.error('Erreur technique Gemini (Synthèse) :', err);
-    toast.error('Impossible de générer la synthèse. Vérifie dans les Paramètres que ta clé API est active et redétecte les modèles.');
+    if (err.message && (err.message.includes('503') || err.message.includes('high demand') || err.message.includes('UNAVAILABLE'))) {
+      toast.error('Les serveurs Google Gemini sont temporairement saturés (503). Réessaie dans quelques instants.');
+    } else {
+      toast.error('Impossible de générer la synthèse. Vérifie dans les Paramètres que ta clé API est active et redétecte les modèles.');
+    }
   } finally {
     isGeneratingReview.value = false;
   }

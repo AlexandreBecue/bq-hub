@@ -595,29 +595,87 @@ export async function generateDemoData() {
   await db.records.put(inboxRecord);
 }
 
+export interface CurrentDebriefContext {
+  titre: string;
+  type?: string;
+  genres?: string[];
+}
+
+/**
+ * Builds a targeted textual representation containing past reviews of SIMILAR content
+ * (matching genres, format and themes) to drastically save tokens and provide
+ * much more relevant conversational comparisons.
+ */
+export async function getSimilarReviewsForAIContext(
+  current: CurrentDebriefContext,
+  userName?: string,
+  limit = 8
+): Promise<string> {
+  const name = (userName || 'l’utilisateur').trim();
+  const movies = await getMovies('Vu');
+  const reviewsWithText = movies.filter(m => 
+    m.avis && 
+    m.avis.trim().length > 0 && 
+    m.titre.toLowerCase() !== current.titre.toLowerCase()
+  );
+
+  const currentGenres = (current.genres || []).map(g => g.toLowerCase());
+  const currentType = (current.type || 'Film').toLowerCase();
+
+  // Score each watched movie based on similarity
+  const scored = reviewsWithText.map(m => {
+    let score = 0;
+    const mGenres = (m.genres || []).map(g => g.toLowerCase());
+    
+    // Matching genres (+3 each)
+    for (const g of mGenres) {
+      if (currentGenres.includes(g)) {
+        score += 3;
+      }
+    }
+
+    // Same format (+1)
+    if (m.type && m.type.toLowerCase() === currentType) {
+      score += 1;
+    }
+
+    return {
+      movie: m,
+      score
+    };
+  });
+
+  // Sort by similarity score descending, then by date descending
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const dateA = a.movie.dernier_visionnage || '';
+    const dateB = b.movie.dernier_visionnage || '';
+    return dateB.localeCompare(dateA);
+  });
+
+  const selected = scored.slice(0, limit);
+
+  let context = `RÉFÉRENCES ET AVIS PERTINENTS DE ${name.toUpperCase()} (ŒUVRES SIMILAIRES) :\n`;
+
+  if (selected.length === 0) {
+    context += `Aucun avis rédigé précédent dans un genre similaire.\n`;
+  } else {
+    for (const item of selected) {
+      const m = item.movie;
+      const origin = (m.origine || []).join(', ');
+      const note = m.note !== undefined ? ` [Note: ${m.note}/10]` : '';
+      const genresStr = (m.genres || []).join(', ');
+      context += `- "${m.titre}" (${m.type}${genresStr ? ' - ' + genresStr : ''}${origin ? ' sur ' + origin : ''})${note} : "${m.avis}"\n`;
+    }
+  }
+
+  return context;
+}
+
 /**
  * Builds a rich textual representation of all watched movies and reviews
  * to provide complete context to the Gemini LLM.
  */
 export async function getAllReviewsForAIContext(userName?: string): Promise<string> {
-  const name = (userName || 'l’utilisateur').trim();
-  const movies = await getMovies('Vu');
-  const reviewsWithText = movies.filter(m => m.avis && m.avis.trim().length > 0);
-
-  let context = `HISTORIQUE ET GOÛTS CINÉMATOGRAPHIQUES DE ${name.toUpperCase()} :\n\n`;
-  context += `Films et séries visionnés avec avis rédigés (${reviewsWithText.length}) :\n`;
-
-  for (const m of reviewsWithText) {
-    const origin = (m.origine || []).join(', ');
-    const note = m.note !== undefined ? ` [Note: ${m.note}/10]` : '';
-    context += `- "${m.titre}" (${m.type}${m.dernier_visionnage ? ', vu le ' + m.dernier_visionnage : ''}${origin ? ' sur ' + origin : ''})${note} : "${m.avis}"\n`;
-  }
-
-  const otherWatched = movies.filter(m => !m.avis || m.avis.trim().length === 0);
-  if (otherWatched.length > 0) {
-    context += `\nAutres contenus vus sans avis détaillé :\n`;
-    context += otherWatched.map(m => m.titre).slice(0, 50).join(', ') + '...\n';
-  }
-
-  return context;
+  return getSimilarReviewsForAIContext({ titre: '' }, userName);
 }
