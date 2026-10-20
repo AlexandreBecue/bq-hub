@@ -8,12 +8,12 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'favicon.svg'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'maskable-icon-512x512.png', 'favicon.svg'],
       manifest: {
         name: 'bq-graph',
         short_name: 'bq-graph',
         description: 'Centralise et analyse toutes tes données du quotidien',
-        theme_color: '#3b82f6',
+        theme_color: '#0f172a',
         background_color: '#0f172a',
         display: 'standalone',
         icons: [
@@ -36,7 +36,7 @@ export default defineConfig({
             src: 'maskable-icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'maskable'
+            purpose: 'any maskable'
           }
         ]
       }

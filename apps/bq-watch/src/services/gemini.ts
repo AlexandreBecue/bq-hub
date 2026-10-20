@@ -8,6 +8,17 @@ const DEFAULT_PROFILE: UserProfileConfig = {
   preferences: ''
 };
 
+export const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
+
+export const POPULAR_GEMINI_MODELS = [
+  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Recommandé - Rapide et moderne)' },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Dernière génération)' },
+  { id: 'gemini-1.5-flash-latest', label: 'Gemini 1.5 Flash Latest' },
+  { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+  { id: 'gemini-2.0-pro-exp', label: 'Gemini 2.0 Pro Experimental' },
+  { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+];
+
 export function getUserProfile(): UserProfileConfig {
   const saved = localStorage.getItem('bq_watch_user_profile');
   if (saved) {
@@ -37,6 +48,38 @@ export function setGeminiApiKey(key: string) {
   localStorage.setItem('bq_watch_gemini_api_key', key.trim());
 }
 
+export function getGeminiModel(): string {
+  return localStorage.getItem('bq_watch_gemini_model') || DEFAULT_GEMINI_MODEL;
+}
+
+export function setGeminiModel(model: string) {
+  localStorage.setItem('bq_watch_gemini_model', model.trim() || DEFAULT_GEMINI_MODEL);
+}
+
+export async function listAvailableGeminiModels(apiKey?: string): Promise<Array<{ id: string; label: string }>> {
+  const key = apiKey || getGeminiApiKey();
+  if (!key) return [];
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (Array.isArray(data.models)) {
+      return data.models
+        .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+        .map((m: any) => {
+          const id = m.name.replace(/^models\//, '');
+          return {
+            id,
+            label: m.displayName ? `${m.displayName} (${id})` : id
+          };
+        });
+    }
+  } catch (err) {
+    console.warn('Impossible de récupérer la liste des modèles Gemini:', err);
+  }
+  return [];
+}
+
 export interface GeminiMessage {
   role: 'user' | 'model';
   parts: Array<{ text: string }>;
@@ -60,24 +103,84 @@ RÈGLES DE CONVERSATION :
 }
 
 /**
+ * Robust execution of Gemini API with automatic fallback in case of 404 (model not found / deprecated).
+ */
+async function callGeminiApi(
+  body: any,
+  requestedModel?: string
+): Promise<any> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error('Clé API Gemini manquante. Veuillez la configurer dans les Paramètres.');
+  }
+
+  const primaryModel = requestedModel || getGeminiModel() || DEFAULT_GEMINI_MODEL;
+
+  // Build ordered list of candidates to try in case of 404
+  const candidateModels = Array.from(new Set([
+    primaryModel,
+    'gemini-2.0-flash',
+    'gemini-2.5-flash',
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-flash-001',
+    'gemini-1.5-flash'
+  ]));
+
+  let lastError = '';
+
+  for (const model of candidateModels) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (res.ok) {
+        // If we fell back to a different model and it worked, remember it!
+        if (model !== primaryModel) {
+          console.info(`Modèle Gemini basculé avec succès sur "${model}".`);
+          setGeminiModel(model);
+        }
+        return await res.json();
+      }
+
+      const errText = await res.text();
+      lastError = errText;
+
+      // Only continue to fallback if it's a 404 (model not found / not supported for generateContent)
+      if (res.status === 404) {
+        console.warn(`Modèle Gemini "${model}" non trouvé (404), tentative avec le modèle suivant...`);
+        continue;
+      }
+
+      // For other HTTP error codes (e.g. 400 bad request, 401/403 auth, 429 rate limit), abort immediately
+      throw new Error(`Erreur API Gemini (${res.status}): ${errText}`);
+    } catch (err: any) {
+      if (err.message && err.message.startsWith('Erreur API Gemini')) {
+        throw err;
+      }
+      lastError = err.message || String(err);
+    }
+  }
+
+  throw new Error(`Aucun modèle Gemini compatible n'a pu répondre. Dernière erreur: ${lastError}`);
+}
+
+/**
  * Sends a message in the debriefing chat with Gemini.
  */
 export async function sendDebriefMessage(
   history: Array<{ role: 'user' | 'model'; text: string }>,
   movieTitle: string,
   userPastContext: string,
-  modelName = 'gemini-1.5-flash'
+  modelName?: string
 ): Promise<string> {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw new Error('Clé API Gemini manquante. Veuillez la configurer dans les Paramètres.');
-  }
-
   const profile = getUserProfile();
   const systemPrompt = buildSystemPrompt(profile);
   const userName = profile.name || 'l’utilisateur';
-
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
   const contents: GeminiMessage[] = [
     {
@@ -105,18 +208,7 @@ export async function sendDebriefMessage(
     });
   }
 
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents })
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Erreur API Gemini (${res.status}): ${err}`);
-  }
-
-  const data = await res.json();
+  const data = await callGeminiApi({ contents }, modelName);
   const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
   return reply || "Je n'ai pas pu générer de réponse.";
 }
@@ -128,18 +220,11 @@ export async function generateFinalReviewAndRating(
   history: Array<{ role: 'user' | 'model'; text: string }>,
   movieTitle: string,
   userPastContext: string,
-  modelName = 'gemini-1.5-flash'
+  modelName?: string
 ): Promise<{ avis: string; note: number; mention: string }> {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw new Error('Clé API Gemini manquante. Veuillez la configurer dans les Paramètres.');
-  }
-
   const profile = getUserProfile();
   const systemPrompt = buildSystemPrompt(profile);
   const userName = profile.name || 'l’utilisateur';
-
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
   const prompt = `${systemPrompt}\n\n${userPastContext}\n\nVoici l'échange complet avec ${userName} concernant "${movieTitle}" :\n` +
     history.map(h => `${h.role === 'user' ? userName : 'IA'}: ${h.text}`).join('\n') +
@@ -151,21 +236,12 @@ export async function generateFinalReviewAndRating(
     `}\n` +
     `Réponds UNIQUEMENT avec le bloc JSON valide, sans texte additionnel.`;
 
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json' }
-    })
-  });
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: 'application/json' }
+  };
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Erreur API Gemini (${res.status}): ${err}`);
-  }
-
-  const data = await res.json();
+  const data = await callGeminiApi(body, modelName);
   const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!rawText) {
     throw new Error('Réponse vide de Gemini.');

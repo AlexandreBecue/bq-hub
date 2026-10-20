@@ -222,13 +222,11 @@ const checkAutomatedTemplates = () => {
       const diffDays = diffTime / (1000 * 60 * 60 * 24);
 
       // Suggérer si l'échéance est dans 10 jours max ou jusqu'à 30 jours après
-      // TODO : periodname doit être la date exacte prévue pour l'opération (jours mois année)
       if (diffDays <= 10 && diffDays >= -30) {
+        const targetDay = cand.targetDate.getDate();
         const targetMonth = cand.targetDate.getMonth();
         const targetYear = cand.targetDate.getFullYear();
-        const periodName = t.recurrence === 'monthly'
-          ? `${monthNames[targetMonth]} ${targetYear}`
-          : `${targetYear}`;
+        const periodName = `le ${targetDay} ${monthNames[targetMonth].toLowerCase()} ${targetYear}`;
 
         activeNotification.value = {
           template: t,

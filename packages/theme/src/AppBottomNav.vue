@@ -42,6 +42,9 @@ const emit = defineEmits<{
   align-items: center;
   padding: 0 0.5rem;
   z-index: 1000;
+  background: var(--color-bg-navbar, rgba(15, 23, 42, 0.95));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-top: 1px solid var(--color-border);
   box-shadow: 0 -4px 10px color-mix(in srgb, var(--color-black) 30%, transparent);
 }

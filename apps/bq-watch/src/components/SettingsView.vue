@@ -3,12 +3,21 @@ import { ref, computed, onMounted } from 'vue';
 import { db } from '../db/index';
 import { syncEngine } from '../db/google-drive';
 import { generateDemoData, initializeCollections } from '../db/queries';
-import { getGeminiApiKey, setGeminiApiKey, getUserProfile, setUserProfile } from '../services/gemini';
+import { 
+  getGeminiApiKey, 
+  setGeminiApiKey, 
+  getUserProfile, 
+  setUserProfile,
+  getGeminiModel,
+  setGeminiModel,
+  listAvailableGeminiModels,
+  POPULAR_GEMINI_MODELS
+} from '../services/gemini';
 import { getTmdbApiKey, setTmdbApiKey, getFrenchWatchProviders, type TMDBProviderItem } from '../services/tmdb';
 import { getExpressTags, setExpressTags, DEFAULT_EXPRESS_TAGS } from '../services/tags';
 import BaseSettings from '@bq/theme/BaseSettings.vue';
 import { useToast } from '@bq/theme/useToast';
-import { Key, Sparkles, Film, Plus, X, Tv, Search, Sliders, User, Clapperboard } from '@lucide/vue';
+import { Key, Sparkles, Film, Plus, X, Tv, Search, Sliders, User, Clapperboard, RefreshCw } from '@lucide/vue';
 
 const emit = defineEmits(['data-updated']);
 const toast = useToast();
@@ -19,6 +28,9 @@ const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const userName = ref('');
 const userPreferences = ref('');
 const geminiKey = ref('');
+const geminiModel = ref(getGeminiModel());
+const availableModels = ref<Array<{ id: string; label: string }>>(POPULAR_GEMINI_MODELS);
+const isLoadingModels = ref(false);
 const tmdbKey = ref('');
 
 // Dynamic TMDB Providers
@@ -54,6 +66,7 @@ const checkDbStatus = async () => {
 onMounted(async () => {
   await checkDbStatus();
   geminiKey.value = getGeminiApiKey();
+  geminiModel.value = getGeminiModel();
   tmdbKey.value = getTmdbApiKey();
 
   const profile = getUserProfile();
@@ -117,14 +130,40 @@ const toggleProvider = (id: number) => {
   emit('data-updated');
 };
 
+const fetchModelsFromApi = async () => {
+  if (!geminiKey.value.trim()) {
+    toast.warning('Renseigne d\'abord une clé API Gemini pour détecter les modèles.');
+    return;
+  }
+  isLoadingModels.value = true;
+  try {
+    const apiModels = await listAvailableGeminiModels(geminiKey.value.trim());
+    if (apiModels.length > 0) {
+      availableModels.value = apiModels;
+      if (!apiModels.some(m => m.id === geminiModel.value)) {
+        const preferred = apiModels.find(m => m.id.includes('2.0-flash')) || apiModels[0];
+        geminiModel.value = preferred.id;
+      }
+      toast.success(`${apiModels.length} modèles Gemini détectés pour ta clé !`);
+    } else {
+      toast.info('Impossible de récupérer la liste dynamique. Modèles recommandés conservés.');
+    }
+  } catch (err: any) {
+    toast.error(err.message || 'Erreur lors de la récupération des modèles.');
+  } finally {
+    isLoadingModels.value = false;
+  }
+};
+
 const saveAiAndApiSettings = async () => {
   setUserProfile({
     name: userName.value,
     preferences: userPreferences.value
   });
   setGeminiApiKey(geminiKey.value);
+  setGeminiModel(geminiModel.value);
   setTmdbApiKey(tmdbKey.value);
-  toast.success('Profil et clés API enregistrés avec succès !');
+  toast.success('Profil, modèle et clés API enregistrés avec succès !');
 
   // Reload providers with the new key
   try {
@@ -325,6 +364,29 @@ const handleGenerateDemo = async () => {
               placeholder="AIzaSy..." 
             />
             <small class="help-text">Obtiens une clé 100% gratuite sur aistudio.google.com</small>
+          </div>
+
+          <div class="form-group">
+            <div class="flex-row justify-between align-center mb-1">
+              <label for="gemini-model" style="margin-bottom: 0;">
+                <Sparkles class="inline-icon" /> Modèle Gemini
+              </label>
+              <button 
+                type="button" 
+                class="btn btn-secondary btn-sm" 
+                :disabled="isLoadingModels || !geminiKey" 
+                @click="fetchModelsFromApi"
+              >
+                <RefreshCw :size="12" :class="{ 'spin': isLoadingModels }" />
+                {{ isLoadingModels ? 'Détection...' : 'Détecter les modèles' }}
+              </button>
+            </div>
+            <select id="gemini-model" v-model="geminiModel" class="select">
+              <option v-for="m in availableModels" :key="m.id" :value="m.id">
+                {{ m.label }}
+              </option>
+            </select>
+            <small class="help-text">Par défaut : gemini-2.0-flash (recommandé, rapide et moderne).</small>
           </div>
 
           <div class="form-group">

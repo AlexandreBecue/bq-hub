@@ -10,6 +10,7 @@
   /* Surfaces & Background Colors */
   --color-bg-page: #0b0f19;      /* Fond de page global */
   --color-bg-surface: #131a26;   /* Surfaces en relief (header, bottom-nav) */
+  --color-bg-navbar: rgba(15, 23, 42, 0.95); /* Fond renforcé et sécurisé pour les barres de navigation */
   --color-bg-card: rgba(22, 30, 49, 0.7);  /* Fond standard des cartes */
   --color-bg-glass: rgba(15, 23, 42, 0.6); /* Fond translucide effet flouté */
   
@@ -83,46 +84,76 @@
   --color-info-hover: var(--color-blue-hover);
   --color-info-contrast: var(--color-blue-contrast);
 
-  /* Application Brand Colors */
+  /* Application Brand Colors (Primary & Secondary) */
   --color-bq-bank: #60a5fa;
   --color-bq-bank-hover: #3b82f6;
   --color-bq-bank-contrast: #ffffff;
+  --color-bq-bank-secondary: #389a7d;
+  --color-bq-bank-secondary-hover: #29755f;
+  --color-bq-bank-secondary-contrast: #ffffff;
   
   --color-bq-car: #fc8181;
   --color-bq-car-hover: #ef4444;
   --color-bq-car-contrast: #ffffff;
+  --color-bq-car-secondary: var(--color-white);
+  --color-bq-car-secondary-hover: var(--color-white-hover);
+  --color-bq-car-secondary-contrast: var(--color-white-contrast);
   
   --color-bq-cloth: #c5a880;
   --color-bq-cloth-hover: #c5a880;
   --color-bq-cloth-contrast: #0b0f19;
+  --color-bq-cloth-secondary: var(--color-terracotta);
+  --color-bq-cloth-secondary-hover: var(--color-terracotta-hover);
+  --color-bq-cloth-secondary-contrast: var(--color-terracotta-contrast);
   
   --color-bq-coach: #f97316;
   --color-bq-coach-hover: #f43f5e;
   --color-bq-coach-contrast: #ffffff;
+  --color-bq-coach-secondary: var(--color-yellow);
+  --color-bq-coach-secondary-hover: var(--color-yellow-hover);
+  --color-bq-coach-secondary-contrast: var(--color-yellow-contrast);
   
   --color-bq-cook: #facc15;
   --color-bq-cook-hover: #eab308;
   --color-bq-cook-contrast: #0b0f19;
+  --color-bq-cook-secondary: #563828;
+  --color-bq-cook-secondary-hover: #40291d;
+  --color-bq-cook-secondary-contrast: #ffffff;
   
   --color-bq-graph: #22d3ee;
   --color-bq-graph-hover: #06b6d4;
   --color-bq-graph-contrast: #0b0f19;
+  --color-bq-graph-secondary: var(--color-purple);
+  --color-bq-graph-secondary-hover: var(--color-purple-hover);
+  --color-bq-graph-secondary-contrast: var(--color-purple-contrast);
   
   --color-bq-health: #34d399;
   --color-bq-health-hover: #10b981;
   --color-bq-health-contrast: #0b0f19;
+  --color-bq-health-secondary: #f9f77c;
+  --color-bq-health-secondary-hover: #dbd963;
+  --color-bq-health-secondary-contrast: #0b0f19;
   
   --color-bq-learn: #f4abba;
   --color-bq-learn-hover: #ea596e;
   --color-bq-learn-contrast: #0b0f19;
+  --color-bq-learn-secondary: #9f83b0;
+  --color-bq-learn-secondary-hover: #836994;
+  --color-bq-learn-secondary-contrast: #ffffff;
   
   --color-bq-play: #a78bfa;
   --color-bq-play-hover: #6d28d9;
   --color-bq-play-contrast: #0b0f19;
+  --color-bq-play-secondary: var(--color-pink);
+  --color-bq-play-secondary-hover: var(--color-pink-hover);
+  --color-bq-play-secondary-contrast: var(--color-pink-contrast);
 
-  --color-bq-watch: #f43f5e;
-  --color-bq-watch-hover: #e11d48;
+  --color-bq-watch: #920707;
+  --color-bq-watch-hover: #7a0606;
   --color-bq-watch-contrast: #ffffff;
+  --color-bq-watch-secondary: #3a8fdc;
+  --color-bq-watch-secondary-hover: #2b70b0;
+  --color-bq-watch-secondary-contrast: #ffffff;
 
   /* Fallback App Theme Colors */
   --color-primary: var(--color-yellow);
@@ -148,6 +179,7 @@
   /* Backward Compatibility Aliases during migration */
   --bg-primary: var(--color-bg-page);
   --bg-secondary: var(--color-bg-surface);
+  --bg-navbar: var(--color-bg-navbar);
   --bg-tertiary: var(--color-neutral);
   --bg-card: var(--color-bg-card);
   --bg-glass: var(--color-bg-glass);

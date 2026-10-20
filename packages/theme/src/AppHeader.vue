@@ -1,22 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { dbStatus } from '@bq/db-sync';
-
 const props = withDefaults(defineProps<{
   appName: string;
   appSubtitle?: string;
   logoSrc?: string;
 }>(), {
   logoSrc: '/favicon.svg'
-});
-
-const dbStatusText = computed(() => {
-  switch (dbStatus.value) {
-    case 'loading': return 'Chargement...';
-    case 'saving': return 'Sauvegarde...';
-    case 'error': return 'Erreur DB';
-    default: return 'Hors-ligne';
-  }
 });
 </script>
 
@@ -29,13 +17,6 @@ const dbStatusText = computed(() => {
       <h1>{{ props.appName }}</h1>
       <span v-if="props.appSubtitle" class="logo-sub">{{ props.appSubtitle }}</span>
     </div>
-
-    <div class="header-status">
-      <div class="offline-badge" :class="dbStatus">
-        <span class="pulse-indicator"></span>
-        <span>{{ dbStatusText }}</span>
-      </div>
-    </div>
   </header>
 </template>
 
@@ -43,13 +24,15 @@ const dbStatusText = computed(() => {
 .app-header {
   display: flex;
   align-items: center;
-  justify-content: space-between !important;
   width: 100%;
   height: 60px;
-  padding: 0 1.5rem;
+  padding: 0 1rem;
   position: sticky;
   top: 0;
   z-index: 1000;
+  background: var(--color-bg-navbar, rgba(15, 23, 42, 0.95));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   box-shadow: 0 4px 6px -1px color-mix(in srgb, var(--color-black) 10%, transparent);
 }
 
@@ -57,6 +40,8 @@ const dbStatusText = computed(() => {
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  white-space: nowrap;
+  min-width: 0;
 
   .logo-emoji-wrapper {
     width: 32px;
@@ -64,6 +49,7 @@ const dbStatusText = computed(() => {
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 
     img {
       width: 100%;
@@ -77,6 +63,7 @@ const dbStatusText = computed(() => {
     font-weight: 800;
     margin: 0;
     letter-spacing: -0.5px;
+    white-space: nowrap;
   }
 
   .logo-sub {
@@ -89,18 +76,14 @@ const dbStatusText = computed(() => {
     border-radius: var(--radius-sm);
     letter-spacing: 0.05em;
     text-transform: uppercase;
+    white-space: nowrap;
   }
-}
-
-.header-status {
-  display: flex;
-  align-items: center;
-  margin-left: auto;
 }
 
 @media (min-width: 768px) {
   .app-header {
     height: 64px;
+    padding: 0 1.5rem;
   }
 }
 </style>
