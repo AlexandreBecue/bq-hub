@@ -10,8 +10,8 @@ import {
   setUserProfile,
   getGeminiModel,
   setGeminiModel,
-  listAvailableGeminiModels,
-  POPULAR_GEMINI_MODELS
+  getStoredAvailableModels,
+  listAvailableGeminiModels
 } from '../services/gemini';
 import { getTmdbApiKey, setTmdbApiKey, getFrenchWatchProviders, type TMDBProviderItem } from '../services/tmdb';
 import { getExpressTags, setExpressTags, DEFAULT_EXPRESS_TAGS } from '../services/tags';
@@ -29,7 +29,7 @@ const userName = ref('');
 const userPreferences = ref('');
 const geminiKey = ref('');
 const geminiModel = ref(getGeminiModel());
-const availableModels = ref<Array<{ id: string; label: string }>>(POPULAR_GEMINI_MODELS);
+const availableModels = ref<Array<{ id: string; label: string }>>(getStoredAvailableModels());
 const isLoadingModels = ref(false);
 const tmdbKey = ref('');
 
@@ -130,6 +130,11 @@ const toggleProvider = (id: number) => {
   emit('data-updated');
 };
 
+const onModelChange = () => {
+  setGeminiModel(geminiModel.value);
+  toast.success(`Modèle sélectionné : ${geminiModel.value}`);
+};
+
 const fetchModelsFromApi = async () => {
   if (!geminiKey.value.trim()) {
     toast.warning('Renseigne d\'abord une clé API Gemini pour détecter les modèles.');
@@ -140,13 +145,14 @@ const fetchModelsFromApi = async () => {
     const apiModels = await listAvailableGeminiModels(geminiKey.value.trim());
     if (apiModels.length > 0) {
       availableModels.value = apiModels;
-      if (!apiModels.some(m => m.id === geminiModel.value)) {
-        const preferred = apiModels.find(m => m.id.includes('2.0-flash')) || apiModels[0];
+      if (!geminiModel.value || !apiModels.some(m => m.id === geminiModel.value)) {
+        const preferred = apiModels.find(m => m.id.includes('flash')) || apiModels[0];
         geminiModel.value = preferred.id;
       }
+      setGeminiModel(geminiModel.value);
       toast.success(`${apiModels.length} modèles Gemini détectés pour ta clé !`);
     } else {
-      toast.info('Impossible de récupérer la liste dynamique. Modèles recommandés conservés.');
+      toast.warning('Aucun modèle supporté trouvé pour cette clé.');
     }
   } catch (err: any) {
     toast.error(err.message || 'Erreur lors de la récupération des modèles.');
@@ -381,12 +387,25 @@ const handleGenerateDemo = async () => {
                 {{ isLoadingModels ? 'Détection...' : 'Détecter les modèles' }}
               </button>
             </div>
-            <select id="gemini-model" v-model="geminiModel" class="select">
+            <select 
+              id="gemini-model" 
+              v-model="geminiModel" 
+              class="select"
+              @change="onModelChange"
+            >
+              <option v-if="availableModels.length === 0" value="" disabled>
+                Aucun modèle détecté — clique sur "Détecter les modèles"
+              </option>
               <option v-for="m in availableModels" :key="m.id" :value="m.id">
                 {{ m.label }}
               </option>
             </select>
-            <small class="help-text">Par défaut : gemini-2.0-flash (recommandé, rapide et moderne).</small>
+            <small class="help-text" v-if="availableModels.length === 0">
+              Clique sur "Détecter les modèles" pour interroger l'API avec ta clé et charger la liste.
+            </small>
+            <small class="help-text" v-else>
+              Modèle actif : <strong>{{ geminiModel || 'Aucun' }}</strong>. Sélection enregistrée.
+            </small>
           </div>
 
           <div class="form-group">

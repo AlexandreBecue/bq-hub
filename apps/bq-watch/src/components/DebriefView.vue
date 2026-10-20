@@ -3,7 +3,7 @@ import { ref, onMounted, watch } from 'vue';
 import type { MovieRecord, TMDBMediaResult, ChatMessage } from '../types';
 import { saveMovie, saveViewing, getAllReviewsForAIContext, deleteMovie, getMovies } from '../db/queries';
 import { searchTMDB, getPosterUrl } from '../services/tmdb';
-import { sendDebriefMessage, generateFinalReviewAndRating, getGeminiApiKey, getUserProfile } from '../services/gemini';
+import { sendDebriefMessage, generateFinalReviewAndRating, getGeminiApiKey, getGeminiModel, getUserProfile } from '../services/gemini';
 import { getExpressTags } from '../services/tags';
 import { useToast } from '@bq/theme/useToast';
 import { Sparkles, Send, Check, Search, Tag } from '@lucide/vue';
@@ -194,6 +194,15 @@ async function handleSendMessage() {
   const text = userInput.value.trim();
   if (!text || isAILoading.value) return;
 
+  if (!getGeminiApiKey()) {
+    toast.warning('Configure ta clé API Gemini dans les Paramètres.');
+    return;
+  }
+  if (!getGeminiModel()) {
+    toast.warning('Sélectionne un modèle Gemini dans les Paramètres (clique sur "Détecter les modèles").');
+    return;
+  }
+
   chatMessages.value.push({
     id: `msg-${Date.now()}`,
     sender: 'user',
@@ -219,8 +228,8 @@ async function handleSendMessage() {
       timestamp: Date.now()
     });
   } catch (err: any) {
-    console.error(err);
-    toast.error(err.message || 'Erreur lors de la communication avec Gemini.');
+    console.error('Erreur technique Gemini (Débrief) :', err);
+    toast.error('Impossible de contacter l\'IA. Vérifie dans les Paramètres que ta clé API est active et redétecte les modèles.');
   } finally {
     isAILoading.value = false;
   }
@@ -229,6 +238,10 @@ async function handleSendMessage() {
 async function handleGenerateReview() {
   if (!getGeminiApiKey()) {
     toast.warning('Configure ta clé API Gemini dans les Paramètres pour générer la synthèse.');
+    return;
+  }
+  if (!getGeminiModel()) {
+    toast.warning('Sélectionne un modèle Gemini dans les Paramètres pour générer la synthèse.');
     return;
   }
 
@@ -247,8 +260,8 @@ async function handleGenerateReview() {
     selectedMention.value = res.mention;
     toast.success('Synthèse et note suggérées avec succès ! ✨');
   } catch (err: any) {
-    console.error(err);
-    toast.error(err.message || 'Erreur lors de la génération de la synthèse.');
+    console.error('Erreur technique Gemini (Synthèse) :', err);
+    toast.error('Impossible de générer la synthèse. Vérifie dans les Paramètres que ta clé API est active et redétecte les modèles.');
   } finally {
     isGeneratingReview.value = false;
   }

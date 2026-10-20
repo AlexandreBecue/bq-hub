@@ -8,17 +8,6 @@ const DEFAULT_PROFILE: UserProfileConfig = {
   preferences: ''
 };
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
-
-export const POPULAR_GEMINI_MODELS = [
-  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Recommandé - Rapide et moderne)' },
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Dernière génération)' },
-  { id: 'gemini-1.5-flash-latest', label: 'Gemini 1.5 Flash Latest' },
-  { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-  { id: 'gemini-2.0-pro-exp', label: 'Gemini 2.0 Pro Experimental' },
-  { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-];
-
 export function getUserProfile(): UserProfileConfig {
   const saved = localStorage.getItem('bq_watch_user_profile');
   if (saved) {
@@ -49,11 +38,28 @@ export function setGeminiApiKey(key: string) {
 }
 
 export function getGeminiModel(): string {
-  return localStorage.getItem('bq_watch_gemini_model') || DEFAULT_GEMINI_MODEL;
+  const model = localStorage.getItem('bq_watch_gemini_model') || '';
+  return model.replace(/^models\//, '').trim();
 }
 
 export function setGeminiModel(model: string) {
-  localStorage.setItem('bq_watch_gemini_model', model.trim() || DEFAULT_GEMINI_MODEL);
+  const clean = (model || '').replace(/^models\//, '').trim();
+  localStorage.setItem('bq_watch_gemini_model', clean);
+}
+
+export function getStoredAvailableModels(): Array<{ id: string; label: string }> {
+  const saved = localStorage.getItem('bq_watch_available_models');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+  return [];
+}
+
+export function setStoredAvailableModels(models: Array<{ id: string; label: string }>) {
+  localStorage.setItem('bq_watch_available_models', JSON.stringify(models));
 }
 
 export async function listAvailableGeminiModels(apiKey?: string): Promise<Array<{ id: string; label: string }>> {
@@ -61,21 +67,27 @@ export async function listAvailableGeminiModels(apiKey?: string): Promise<Array<
   if (!key) return [];
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Erreur récupération modèles (${res.status}): ${errText}`);
+    }
     const data = await res.json();
     if (Array.isArray(data.models)) {
-      return data.models
+      const filtered = data.models
         .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
         .map((m: any) => {
-          const id = m.name.replace(/^models\//, '');
+          const id = m.name.replace(/^models\//, '').trim();
           return {
             id,
             label: m.displayName ? `${m.displayName} (${id})` : id
           };
         });
+      setStoredAvailableModels(filtered);
+      return filtered;
     }
-  } catch (err) {
+  } catch (err: any) {
     console.warn('Impossible de récupérer la liste des modèles Gemini:', err);
+    throw err;
   }
   return [];
 }
@@ -103,7 +115,7 @@ RÈGLES DE CONVERSATION :
 }
 
 /**
- * Robust execution of Gemini API with automatic fallback in case of 404 (model not found / deprecated).
+ * Direct execution of Gemini API with the exact user-selected model.
  */
 async function callGeminiApi(
   body: any,
@@ -114,59 +126,32 @@ async function callGeminiApi(
     throw new Error('Clé API Gemini manquante. Veuillez la configurer dans les Paramètres.');
   }
 
-  const primaryModel = requestedModel || getGeminiModel() || DEFAULT_GEMINI_MODEL;
-
-  // Build ordered list of candidates to try in case of 404
-  const candidateModels = Array.from(new Set([
-    primaryModel,
-    'gemini-2.0-flash',
-    'gemini-2.5-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-flash-001',
-    'gemini-1.5-flash'
-  ]));
-
-  let lastError = '';
-
-  for (const model of candidateModels) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      if (res.ok) {
-        // If we fell back to a different model and it worked, remember it!
-        if (model !== primaryModel) {
-          console.info(`Modèle Gemini basculé avec succès sur "${model}".`);
-          setGeminiModel(model);
-        }
-        return await res.json();
-      }
-
-      const errText = await res.text();
-      lastError = errText;
-
-      // Only continue to fallback if it's a 404 (model not found / not supported for generateContent)
-      if (res.status === 404) {
-        console.warn(`Modèle Gemini "${model}" non trouvé (404), tentative avec le modèle suivant...`);
-        continue;
-      }
-
-      // For other HTTP error codes (e.g. 400 bad request, 401/403 auth, 429 rate limit), abort immediately
-      throw new Error(`Erreur API Gemini (${res.status}): ${errText}`);
-    } catch (err: any) {
-      if (err.message && err.message.startsWith('Erreur API Gemini')) {
-        throw err;
-      }
-      lastError = err.message || String(err);
-    }
+  const model = (requestedModel || getGeminiModel() || '').replace(/^models\//, '').trim();
+  if (!model) {
+    throw new Error('Aucun modèle Gemini sélectionné. Veuillez vous rendre dans les Paramètres et cliquer sur "Détecter les modèles".');
   }
 
-  throw new Error(`Aucun modèle Gemini compatible n'a pu répondre. Dernière erreur: ${lastError}`);
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    let parsedMsg = errText;
+    try {
+      const jsonErr = JSON.parse(errText);
+      if (jsonErr.error?.message) {
+        parsedMsg = jsonErr.error.message;
+      }
+    } catch {}
+    throw new Error(`Erreur API Gemini pour le modèle "${model}" (${res.status}): ${parsedMsg}`);
+  }
+
+  return await res.json();
 }
 
 /**
