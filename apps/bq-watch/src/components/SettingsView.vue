@@ -150,7 +150,7 @@ const fetchModelsFromApi = async () => {
         geminiModel.value = preferred.id;
       }
       setGeminiModel(geminiModel.value);
-      toast.success(`${apiModels.length} modèles Gemini détectés pour ta clé !`);
+      toast.success(`${apiModels.length} modèle(s) vérifié(s) et disponible(s) ! Sélection : ${geminiModel.value}`);
     } else {
       toast.warning('Aucun modèle supporté trouvé pour cette clé.');
     }

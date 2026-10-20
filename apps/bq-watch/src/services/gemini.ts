@@ -62,6 +62,31 @@ export function setStoredAvailableModels(models: Array<{ id: string; label: stri
   localStorage.setItem('bq_watch_available_models', JSON.stringify(models));
 }
 
+/**
+ * Effectue un micro-ping pour vérifier si le modèle est réellement actif
+ * et n'est pas déprécié (retourne 404 "no longer available").
+ */
+async function isModelActive(modelId: string, apiKey: string): Promise<boolean> {
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: 'ping' }] }],
+        generationConfig: { maxOutputTokens: 1 }
+      })
+    });
+    // 404 signifie que le modèle est retiré / non disponible pour cette clé
+    if (res.status === 404) {
+      return false;
+    }
+    // 200, 400 ou 429 signifient que le modèle est bien existant et reconnu
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 export async function listAvailableGeminiModels(apiKey?: string): Promise<Array<{ id: string; label: string }>> {
   const key = apiKey || getGeminiApiKey();
   if (!key) return [];
@@ -73,8 +98,13 @@ export async function listAvailableGeminiModels(apiKey?: string): Promise<Array<
     }
     const data = await res.json();
     if (Array.isArray(data.models)) {
-      const filtered = data.models
-        .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+      // 1. Filtrer les modèles de génération Gemini
+      const candidates = data.models
+        .filter((m: any) => 
+          m.supportedGenerationMethods?.includes('generateContent') &&
+          typeof m.name === 'string' &&
+          m.name.includes('gemini')
+        )
         .map((m: any) => {
           const id = m.name.replace(/^models\//, '').trim();
           return {
@@ -82,8 +112,30 @@ export async function listAvailableGeminiModels(apiKey?: string): Promise<Array<
             label: m.displayName ? `${m.displayName} (${id})` : id
           };
         });
-      setStoredAvailableModels(filtered);
-      return filtered;
+
+      // 2. Trier : modèles Flash en priorité, puis versions les plus récentes en haut
+      candidates.sort((a: { id: string; label: string }, b: { id: string; label: string }) => {
+        const aIsFlash = a.id.includes('flash') ? 1 : 0;
+        const bIsFlash = b.id.includes('flash') ? 1 : 0;
+        if (aIsFlash !== bIsFlash) return bIsFlash - aIsFlash;
+        return b.id.localeCompare(a.id, undefined, { numeric: true, sensitivity: 'base' });
+      });
+
+      // 3. Tester la disponibilité réelle en parallèle pour écarter les 404 (obsolètes / non disponibles)
+      const checks = await Promise.allSettled(
+        candidates.map(async (candidate: { id: string; label: string }) => {
+          const active = await isModelActive(candidate.id, key);
+          return active ? candidate : null;
+        })
+      );
+
+      const verified = checks
+        .map(result => result.status === 'fulfilled' ? result.value : null)
+        .filter((item): item is { id: string; label: string } => item !== null);
+
+      const finalModels = verified.length > 0 ? verified : candidates;
+      setStoredAvailableModels(finalModels);
+      return finalModels;
     }
   } catch (err: any) {
     console.warn('Impossible de récupérer la liste des modèles Gemini:', err);
