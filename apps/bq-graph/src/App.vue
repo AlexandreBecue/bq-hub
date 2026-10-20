@@ -5,7 +5,7 @@ import DataExplorerView from './components/DataExplorerView.vue';
 import CollectionChartsView from './components/CollectionChartsView.vue';
 import CollectionsManagerView from './components/CollectionsManagerView.vue';
 import SettingsView from './components/SettingsView.vue';
-import ReloadPrompt from './components/ReloadPrompt.vue';
+import ReloadPrompt from '@bq/theme/ReloadPrompt.vue';
 import AppHeader from '@bq/theme/AppHeader.vue';
 import AppBottomNav, { type NavItem } from '@bq/theme/AppBottomNav.vue';
 import ToastsContainer from '@bq/theme/ToastsContainer.vue';

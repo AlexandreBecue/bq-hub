@@ -9,6 +9,7 @@ import { Gamepad2, Award, History, Settings } from '@lucide/vue';
 import AppHeader from '@bq/theme/AppHeader.vue';
 import AppBottomNav, { type NavItem } from '@bq/theme/AppBottomNav.vue';
 import ToastsContainer from '@bq/theme/ToastsContainer.vue';
+import ReloadPrompt from '@bq/theme/ReloadPrompt.vue';
 import './style.scss';
 
 const activeTab = ref<'ludotheque' | 'scorecard' | 'historique' | 'settings'>(
@@ -55,6 +56,7 @@ onMounted(async () => {
     <AppBottomNav :modelValue="activeTab" :items="navItems" @update:modelValue="handleNavigate" />
 
     <ToastsContainer />
+    <ReloadPrompt appName="bq-play" />
   </div>
 </template>
 

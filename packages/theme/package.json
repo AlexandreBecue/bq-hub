@@ -10,6 +10,7 @@
     "./AppHeader.vue": "./src/AppHeader.vue",
     "./AppBottomNav.vue": "./src/AppBottomNav.vue",
     "./useToast": "./src/useToast.ts",
-    "./ToastsContainer.vue": "./src/ToastsContainer.vue"
+    "./ToastsContainer.vue": "./src/ToastsContainer.vue",
+    "./ReloadPrompt.vue": "./src/ReloadPrompt.vue"
   }
 }

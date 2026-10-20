@@ -9,6 +9,7 @@ import { BookOpen, Settings, LayoutGrid } from '@lucide/vue';
 import AppHeader from '@bq/theme/AppHeader.vue';
 import AppBottomNav, { type NavItem } from '@bq/theme/AppBottomNav.vue';
 import ToastsContainer from '@bq/theme/ToastsContainer.vue';
+import ReloadPrompt from '@bq/theme/ReloadPrompt.vue';
 import './style.scss';
 
 const activeTab = ref<'home' | 'revision' | 'editor' | 'settings'>(
@@ -91,6 +92,7 @@ onMounted(async () => {
     />
 
     <ToastsContainer />
+    <ReloadPrompt appName="bq-learn" />
   </div>
 </template>
 
