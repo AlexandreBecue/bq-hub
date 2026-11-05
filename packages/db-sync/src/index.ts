@@ -122,6 +122,7 @@ export interface DatabaseBackup {
   records: RecordEntry[];
   views: SavedView[];
   templates?: RecordTemplate[];
+  settings?: Record<string, any>;
   exportedAt: number;
 }
 
@@ -176,19 +177,31 @@ export async function exportDatabase(
     templates = templates.filter(t => filterSet.has(t.collectionId));
   }
 
+  const localSettings: Record<string, string> = {};
+  if (typeof localStorage !== 'undefined') {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('bq-') || k.startsWith('bq_')) && !k.includes('token') && !k.endsWith('-tab')) {
+        const v = localStorage.getItem(k);
+        if (v !== null) localSettings[k] = v;
+      }
+    }
+  }
+
   const backup: DatabaseBackup = {
     version: 2,
     collections,
     records,
     views,
     templates,
+    settings: localSettings,
     exportedAt: Date.now()
   };
 
   return JSON.stringify(backup, null, 2);
-}
+  }
 
-export async function importDatabase(db: BQDatabase, jsonText: string): Promise<{ success: boolean; error?: string; merged?: boolean }> {
+  export async function importDatabase(db: BQDatabase, jsonText: string): Promise<{ success: boolean; error?: string; merged?: boolean }> {
   dbStatus.value = 'loading';
   try {
     const backup: DatabaseBackup = JSON.parse(jsonText);
@@ -201,6 +214,15 @@ export async function importDatabase(db: BQDatabase, jsonText: string): Promise<
     const records = backup.records || [];
     const views = backup.views || [];
     const templates = backup.templates || [];
+
+    // Restore settings if present
+    if (backup.settings && typeof localStorage !== 'undefined') {
+      for (const [k, v] of Object.entries(backup.settings)) {
+        if (k && v !== undefined && v !== null) {
+          localStorage.setItem(k, typeof v === 'object' && 'val' in v ? String(v.val) : String(v));
+        }
+      }
+    }
 
     // Perform inside a transaction
     await db.transaction('rw', [db.collections, db.records, db.views, db.templates], async () => {

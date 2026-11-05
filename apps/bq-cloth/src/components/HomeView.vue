@@ -9,7 +9,7 @@ import {
   getContextsRecords,
   formatToFrenchDate
 } from '../db/queries';
-import { CloudSun, Calendar, RefreshCw, Check, AlertTriangle, Play, Sparkles, Thermometer, Sun, CloudFog, CloudDrizzle, CloudRain, Snowflake, CloudLightning, Cloud } from '@lucide/vue';
+import { CloudSun, Calendar, RefreshCw, Check, AlertTriangle, Play, Sparkles, Thermometer, Sun, CloudFog, CloudDrizzle, CloudRain, Snowflake, CloudLightning, Cloud, Edit2, Trash2, X } from '@lucide/vue';
 import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
@@ -335,6 +335,67 @@ const confirmWearOutfit = async () => {
     console.error(err);
   }
 };
+
+// Outfit History Editing State & Methods
+const isEditTenueModalOpen = ref(false);
+const editingTenue = ref<RecordEntry | null>(null);
+const editTenueDate = ref('');
+const editTenueContext = ref('');
+const editTenueGarments = ref<string[]>([]);
+
+const openEditTenue = (t: RecordEntry) => {
+  editingTenue.value = t;
+  editTenueDate.value = t.data.date || new Date().toISOString().split('T')[0];
+  editTenueContext.value = t.data.contexte || '';
+  editTenueGarments.value = [...(t.data.vetements_portes || [])];
+  isEditTenueModalOpen.value = true;
+};
+
+const toggleEditGarment = (id: string) => {
+  const idx = editTenueGarments.value.indexOf(id);
+  if (idx > -1) {
+    editTenueGarments.value.splice(idx, 1);
+  } else {
+    editTenueGarments.value.push(id);
+  }
+};
+
+const handleSaveTenueEdit = async () => {
+  if (!editingTenue.value?.id) return;
+  try {
+    await db.records.update(editingTenue.value.id, {
+      data: {
+        ...editingTenue.value.data,
+        date: editTenueDate.value,
+        contexte: editTenueContext.value,
+        vetements_portes: [...editTenueGarments.value]
+      },
+      updatedAt: Date.now()
+    });
+    isEditTenueModalOpen.value = false;
+    editingTenue.value = null;
+    toast.success('Tenue modifiée avec succès !');
+    emit('data-updated');
+    await loadData();
+  } catch (err) {
+    console.error('Erreur modification tenue:', err);
+    toast.error('Erreur lors de la modification.');
+  }
+};
+
+const handleDeleteTenue = async (id: string) => {
+  try {
+    await db.records.update(id, {
+      deletedAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    toast.success('Tenue supprimée de l\'historique.');
+    emit('data-updated');
+    await loadData();
+  } catch (err) {
+    console.error('Erreur suppression tenue:', err);
+  }
+};
 </script>
 
 <template>
@@ -557,6 +618,75 @@ const confirmWearOutfit = async () => {
         <div class="modal-footer">
           <button @click="showPorterConfirmModal = false" class="btn btn-secondary">Annuler</button>
           <button @click="confirmWearOutfit" class="btn btn-secondary">Confirmer & porter</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Historique des tenues portées -->
+    <div class="card glass history-tenues-card mt-4" v-if="tenues.length > 0">
+      <h3 class="font-bold flex-row mb-3"><Sparkles :size="18" class="text-primary" /> Historique des tenues portées</h3>
+      <div class="tenues-history-list flex-col gap-2">
+        <div v-for="t in tenues" :key="t.id" class="tenue-history-item p-3 card glass mb-2 flex-row justify-between align-center flex-wrap gap-2">
+          <div>
+            <div class="flex-row gap-2 align-center mb-1">
+              <span class="font-bold text-sm">{{ formatToFrenchDate(t.data.date) }}</span>
+              <span class="badge badge-primary text-xs" v-if="t.data.contexte">{{ t.data.contexte }}</span>
+            </div>
+            <div class="flex-row flex-wrap gap-1">
+              <span v-for="gId in t.data.vetements_portes || []" :key="gId" class="badge badge-secondary text-xs">
+                {{ clothes.find(c => c.id === gId)?.data.nom || 'Vêtement' }}
+              </span>
+            </div>
+          </div>
+          <div class="flex-row gap-1">
+            <button @click="openEditTenue(t)" class="action-btn edit" title="Modifier la tenue"><Edit2 :size="14" /></button>
+            <button @click="handleDeleteTenue(t.id!)" class="action-btn delete" title="Supprimer la tenue"><Trash2 :size="14" /></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Outfit Modal -->
+    <div v-if="isEditTenueModalOpen && editingTenue" class="modal-overlay">
+      <div class="modal-container">
+        <div class="modal-header">
+          <h3 class="flex-row gap-2"><Edit2 :size="18" /> Modifier la tenue</h3>
+          <button @click="isEditTenueModalOpen = false" class="modal-close"><X :size="20" /></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label>Date *</label>
+            <input v-model="editTenueDate" type="date" class="input" />
+          </div>
+
+          <div class="form-group mb-3">
+            <label>Contexte *</label>
+            <select v-model="editTenueContext" class="select">
+              <option v-for="ctx in contexts" :key="ctx" :value="ctx">{{ ctx }}</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="mb-2 block font-bold text-xs uppercase text-sub">Vêtements de la tenue (clique pour ajouter/retirer) :</label>
+            <div class="clothes-edit-picker grid grid-2 gap-2 max-h-60 overflow-y-auto p-2 border rounded">
+              <div 
+                v-for="item in clothes" 
+                :key="item.id"
+                class="composer-item p-2 rounded cursor-pointer"
+                :class="{ 'selected': editTenueGarments.includes(item.id!) }"
+                @click="toggleEditGarment(item.id!)"
+              >
+                <div class="item-selection-box flex-row justify-between">
+                  <span class="item-name text-xs font-bold">{{ item.data.nom }}</span>
+                  <Check v-if="editTenueGarments.includes(item.id!)" :size="14" class="text-primary" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer flex-row justify-end gap-2 border-top pt-3 mt-4">
+          <button @click="isEditTenueModalOpen = false" class="btn btn-neutral">Annuler</button>
+          <button @click="handleSaveTenueEdit" class="btn btn-primary">Enregistrer les modifications</button>
         </div>
       </div>
     </div>

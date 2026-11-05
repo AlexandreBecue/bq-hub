@@ -5,11 +5,14 @@ import { getMovies, saveMovie, deleteMovie, getViewingsForMovie, saveViewing, de
 import { getPosterUrl, searchTMDB } from '../services/tmdb';
 import { useToast } from '@bq/theme/useToast';
 import { 
-  Search, Film, Star, Calendar, Trash2, Edit3, Plus, X, Clapperboard, History
+  Search, Film, Star, Calendar, Trash2, Edit3, Plus, X, Clapperboard, History, Inbox
 } from '@lucide/vue';
+import InboxView from './InboxView.vue';
 
 const emit = defineEmits(['data-updated']);
 const toast = useToast();
+
+const showInboxModal = ref(false);
 
 const movies = ref<MovieRecord[]>([]);
 const isLoading = ref(true);
@@ -26,10 +29,6 @@ const editingMovie = ref<MovieRecord>({
   titre: '',
   type: 'Film',
   statut: 'Vu',
-  origine: ['Netflix'],
-  dernier_visionnage: new Date().toISOString().split('T')[0],
-  avis: '',
-  note: 7.0,
   genres: []
 });
 
@@ -236,7 +235,7 @@ async function handleAddViewing() {
 async function handleDeleteViewing(viewingId?: string) {
   if (!viewingId || !activeMovie.value?.id) return;
   try {
-    await deleteViewing(viewingId, activeMovie.value.id);
+    await deleteViewing(viewingId);
     toast.success('Visionnage supprimé.');
     movieViewings.value = await getViewingsForMovie(activeMovie.value.id);
     await loadData();
@@ -368,6 +367,9 @@ function getRatingBadgeClass(note?: number) {
             <X class="clear-icon" />
           </button>
         </div>
+        <button class="btn btn-secondary" @click="showInboxModal = true">
+          <Inbox class="btn-icon" /> Importer
+        </button>
         <button class="btn btn-primary" @click="openAddModal">
           <Plus class="btn-icon" /> Ajouter
         </button>
@@ -743,7 +745,7 @@ function getRatingBadgeClass(note?: number) {
           </div>
 
           <div class="form-row">
-            <div class="form-group">
+            <div class="form-group w-100">
               <label>Type</label>
               <select v-model="editingMovie.type" class="select">
                 <option value="Film">Film</option>
@@ -751,11 +753,6 @@ function getRatingBadgeClass(note?: number) {
                 <option value="Documentaire">Documentaire</option>
                 <option value="Autre">Autre</option>
               </select>
-            </div>
-
-            <div class="form-group">
-              <label>Dernier visionnage</label>
-              <input type="date" v-model="editingMovie.dernier_visionnage" class="input" />
             </div>
           </div>
 
@@ -788,6 +785,21 @@ function getRatingBadgeClass(note?: number) {
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="isEditModalOpen = false">Annuler</button>
           <button class="btn btn-primary" @click="handleSaveMovie">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inbox Import Modal -->
+    <div v-if="showInboxModal" class="modal-overlay">
+      <div class="modal-container scrollable-modal inbox-modal-container">
+        <div class="modal-header">
+          <h2 class="flex-row align-center gap-2">
+            <Inbox class="text-primary" /> Importer un historique
+          </h2>
+          <button @click="showInboxModal = false" class="modal-close"><X /></button>
+        </div>
+        <div class="modal-body p-0">
+           <InboxView @data-updated="emit('data-updated')" />
         </div>
       </div>
     </div>

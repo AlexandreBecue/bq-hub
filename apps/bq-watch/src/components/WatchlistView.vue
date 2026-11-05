@@ -99,7 +99,7 @@ function handleSearchInput() {
 }
 
 async function addToWatchlistFromTMDB(item: TMDBMediaResult) {
-  const isAlreadyIn = watchlist.value.some(m => m.tmdb_id === item.id || m.titre.toLowerCase() === item.title.toLowerCase());
+  const isAlreadyIn = watchlist.value.some(m => m.tmdb_id === item.id);
   if (isAlreadyIn) {
     toast.info(`"${item.title}" est déjà dans ta Watchlist !`);
     searchQuery.value = '';
@@ -169,10 +169,9 @@ async function handleMarkAsWatched(item: MovieRecord) {
   let movieToDebrief: MovieRecord;
 
   if (existingInLibrary) {
-    // Rewatch of existing movie: pass existing library movie with prefilled avis, note, etc.
+    // Re-watch: use existing library record
     movieToDebrief = {
       ...existingInLibrary,
-      dernier_visionnage: new Date().toISOString().split('T')[0],
       // Pass the watchlist item id so debrief can clean it up upon validation
       watchlist_source_id: item.id
     };
@@ -181,7 +180,6 @@ async function handleMarkAsWatched(item: MovieRecord) {
     movieToDebrief = {
       ...item,
       statut: 'Vu',
-      dernier_visionnage: new Date().toISOString().split('T')[0],
       watchlist_source_id: item.id
     };
   }

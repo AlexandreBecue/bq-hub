@@ -6,7 +6,7 @@ import {
   getVaccinsRecords, 
   formatToFrenchDate 
 } from '../db/queries';
-import { Plus, X, ShieldCheck, ShieldAlert } from '@lucide/vue';
+import { Plus, X, ShieldCheck, ShieldAlert, Edit2, Trash2 } from '@lucide/vue';
 import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
@@ -16,6 +16,7 @@ const vaccins = ref<RecordEntry[]>([]);
 const isLoading = ref(true);
 
 const showAddModal = ref(false);
+const editingVaccinId = ref<string | null>(null);
 
 // Form State
 const formVaccin = ref({
@@ -44,6 +45,30 @@ onMounted(() => {
   loadData();
 });
 
+const openAddModal = () => {
+  editingVaccinId.value = null;
+  formVaccin.value = {
+    date: new Date().toISOString().split('T')[0],
+    type: 'DTCaP',
+    vaccin: '',
+    statut: 'Fait',
+    prochain_rappel: ''
+  };
+  showAddModal.value = true;
+};
+
+const openEditVaccin = (v: RecordEntry) => {
+  editingVaccinId.value = v.id || null;
+  formVaccin.value = {
+    date: v.data.date || new Date().toISOString().split('T')[0],
+    type: v.data.type || 'DTCaP',
+    vaccin: v.data.vaccin || '',
+    statut: v.data.statut || 'Fait',
+    prochain_rappel: v.data.prochain_rappel || ''
+  };
+  showAddModal.value = true;
+};
+
 // Handle Log
 const handleAddVaccin = async () => {
   if (!formVaccin.value.vaccin.trim()) {
@@ -52,22 +77,34 @@ const handleAddVaccin = async () => {
   }
 
   try {
-    const newRecord: RecordEntry = {
-      id: `rec-${generateId()}`,
-      collectionId: VACCINS_COL_ID,
-      data: {
-        date: formVaccin.value.date,
-        type: formVaccin.value.type,
-        vaccin: formVaccin.value.vaccin.trim(),
-        statut: formVaccin.value.statut,
-        prochain_rappel: formVaccin.value.statut === 'Fait' ? formVaccin.value.prochain_rappel : ''
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+    const dataPayload = {
+      date: formVaccin.value.date,
+      type: formVaccin.value.type,
+      vaccin: formVaccin.value.vaccin.trim(),
+      statut: formVaccin.value.statut,
+      prochain_rappel: formVaccin.value.statut === 'Fait' ? formVaccin.value.prochain_rappel : ''
     };
 
-    await db.records.add(newRecord);
+    if (editingVaccinId.value) {
+      await db.records.update(editingVaccinId.value, {
+        data: dataPayload,
+        updatedAt: Date.now()
+      });
+      toast.success('Vaccination modifiée avec succès !');
+    } else {
+      const newRecord: RecordEntry = {
+        id: `rec-${generateId()}`,
+        collectionId: VACCINS_COL_ID,
+        data: dataPayload,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await db.records.add(newRecord);
+      toast.success('Vaccination enregistrée !');
+    }
+
     showAddModal.value = false;
+    editingVaccinId.value = null;
     formVaccin.value = {
       date: new Date().toISOString().split('T')[0],
       type: 'DTCaP',
@@ -77,7 +114,6 @@ const handleAddVaccin = async () => {
     };
     emit('data-updated');
     loadData();
-    toast.success('Vaccination enregistrée !');
   } catch (err) {
     console.error(err);
   }
@@ -106,7 +142,7 @@ const handleDeleteVaccin = async (id: string) => {
         <p class="text-sub">Enregistre ton historique de vaccinations et planifie tes prochains rappels de vaccins.</p>
       </div>
       <div class="view-actions">
-        <button @click="showAddModal = true" class="btn btn-primary">
+        <button @click="openAddModal" class="btn btn-primary">
           <Plus :size="18" /> Saisir un vaccin
         </button>
       </div>
@@ -142,11 +178,14 @@ const handleDeleteVaccin = async (id: string) => {
               </div>
             </div>
 
-            <div class="v-actions flex-row gap-3">
+            <div class="v-actions flex-row gap-2">
               <span class="badge" :class="v.data.statut === 'Fait' ? 'badge-success' : 'badge-warning'">
                 {{ v.data.statut }}
               </span>
-              <button @click="handleDeleteVaccin(v.id!)" class="delete-link text-xs">Supprimer</button>
+              <div class="flex-row gap-1">
+                <button @click="openEditVaccin(v)" class="action-btn edit" title="Modifier"><Edit2 :size="13" /></button>
+                <button @click="handleDeleteVaccin(v.id!)" class="action-btn delete" title="Supprimer"><Trash2 :size="13" /></button>
+              </div>
             </div>
           </div>
         </div>
@@ -157,7 +196,7 @@ const handleDeleteVaccin = async (id: string) => {
     <div v-if="showAddModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>Enregistrer un vaccin</h3>
+          <h3>{{ editingVaccinId ? 'Modifier la vaccination' : 'Enregistrer un vaccin' }}</h3>
           <button @click="showAddModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">

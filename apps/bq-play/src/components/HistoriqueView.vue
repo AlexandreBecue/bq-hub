@@ -5,13 +5,48 @@ import {
   getPartiesRecords, 
   formatToFrenchDate 
 } from '../db/queries';
-import { Award, ShieldAlert, ChevronDown, ChevronUp, Trash2, Crown } from '@lucide/vue';
+import { Award, ShieldAlert, ChevronDown, ChevronUp, Trash2, Crown, Edit2, X } from '@lucide/vue';
 
 const parties = ref<RecordEntry[]>([]);
 const isLoading = ref(true);
 
 // State for unfolded session details (ID -> boolean)
 const unfoldedSessions = ref<Record<string, boolean>>({});
+
+// Edit Modal State
+const isEditModalOpen = ref(false);
+const editingParty = ref<RecordEntry | null>(null);
+const editFormDate = ref('');
+const editFormWinner = ref('');
+const editFormScores = ref<Record<string, number>>({});
+
+const openEditParty = (p: RecordEntry) => {
+  editingParty.value = p;
+  editFormDate.value = p.data.date || new Date().toISOString().split('T')[0];
+  editFormWinner.value = p.data.vainqueur || '';
+  editFormScores.value = { ...parseJson(p.data.scores_finaux, {}) };
+  isEditModalOpen.value = true;
+};
+
+const handleSavePartyEdit = async () => {
+  if (!editingParty.value?.id) return;
+  try {
+    await db.records.update(editingParty.value.id, {
+      data: {
+        ...editingParty.value.data,
+        date: editFormDate.value,
+        vainqueur: editFormWinner.value,
+        scores_finaux: JSON.stringify(editFormScores.value)
+      },
+      updatedAt: Date.now()
+    });
+    isEditModalOpen.value = false;
+    editingParty.value = null;
+    loadData();
+  } catch (err) {
+    console.error('Erreur lors de la modification de la partie:', err);
+  }
+};
 
 const loadData = async () => {
   isLoading.value = true;
@@ -96,6 +131,12 @@ const handleDeleteParty = async (id: string) => {
                 <Award :size="12" /> Vainqueur : {{ p.data.vainqueur }}
               </span>
               
+              <button @click="openEditParty(p)" class="action-btn edit" title="Modifier la partie">
+                <Edit2 :size="14" />
+              </button>
+              <button @click="handleDeleteParty(p.id!)" class="action-btn delete" title="Supprimer la partie">
+                <Trash2 :size="14" />
+              </button>
               <button @click="toggleUnfold(p.id!)" class="action-btn" :title="unfoldedSessions[p.id!] ? 'Replier' : 'Déplier'">
                 <ChevronUp v-if="unfoldedSessions[p.id!]" :size="16" />
                 <ChevronDown v-else :size="16" />
@@ -120,7 +161,6 @@ const handleDeleteParty = async (id: string) => {
           <div class="unfolded-ledger-drawer mt-4 border-top pt-3" v-if="unfoldedSessions[p.id!]">
             <h5 class="font-bold text-xs uppercase text-sub mb-3 flex-row justify-between">
               <span>Détail manches par manches</span>
-              <button @click="handleDeleteParty(p.id!)" class="delete-btn-link text-xs flex-row text-danger-icon"><Trash2 :size="12" /> Supprimer la partie</button>
             </h5>
             
             <div class="manches-ledger-table text-sm">
@@ -149,6 +189,41 @@ const handleDeleteParty = async (id: string) => {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Modification de Partie -->
+    <div v-if="isEditModalOpen && editingParty" class="modal-overlay">
+      <div class="modal-container">
+        <div class="modal-header">
+          <h3 class="flex-row gap-2"><Edit2 :size="18" /> Modifier la partie ({{ editingParty.data.jeu }})</h3>
+          <button @click="isEditModalOpen = false" class="modal-close"><X :size="20" /></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label>Date de la partie *</label>
+            <input v-model="editFormDate" type="date" class="input" />
+          </div>
+          <div class="form-group mb-3">
+            <label>Vainqueur de la partie *</label>
+            <select v-model="editFormWinner" class="select">
+              <option v-for="plyr in editingParty.data.participants" :key="plyr" :value="plyr">{{ plyr }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="mb-2 block font-bold text-xs uppercase text-sub">Scores finaux par joueur</label>
+            <div class="grid grid-2 gap-2">
+              <div v-for="plyr in editingParty.data.participants" :key="plyr" class="form-group">
+                <label class="text-xs">{{ plyr }}</label>
+                <input v-model.number="editFormScores[plyr]" type="number" class="input" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer flex-row justify-end gap-2 border-top pt-3 mt-4">
+          <button @click="isEditModalOpen = false" class="btn btn-neutral">Annuler</button>
+          <button @click="handleSavePartyEdit" class="btn btn-primary">Enregistrer les modifications</button>
         </div>
       </div>
     </div>

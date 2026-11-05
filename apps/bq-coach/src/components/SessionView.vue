@@ -37,6 +37,31 @@ const manualCardioMinutes = ref<number>(30);
 const manualCardioSport = ref<string>('Course à pied');
 const manualCardioComment = ref<string>('');
 
+const manualCardioAllure = ref<string>('');
+const manualCardioVitesse = ref<number | null>(null);
+const manualCardioAccompagne = ref<boolean>(false);
+const manualCardioOfficiel = ref<boolean>(false);
+
+import { watch } from 'vue';
+
+// Auto-calculate speed and pace when distance or minutes change
+watch([manualCardioDistance, manualCardioMinutes], ([dist, mins]) => {
+  if (dist > 0 && mins > 0) {
+    // Vitesse en km/h = distance / (minutes / 60)
+    manualCardioVitesse.value = Number((dist / (mins / 60)).toFixed(2));
+    
+    // Allure en min:sec/km
+    const totalSeconds = mins * 60;
+    const secondsPerKm = totalSeconds / dist;
+    const m = Math.floor(secondsPerKm / 60);
+    const s = Math.round(secondsPerKm % 60);
+    manualCardioAllure.value = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  } else {
+    manualCardioVitesse.value = null;
+    manualCardioAllure.value = '';
+  }
+});
+
 async function loadProgramme() {
   isLoading.value = true;
   try {
@@ -97,6 +122,8 @@ function openCardioModal() {
   manualCardioMinutes.value = cardio?.durationMinutes || 30;
   manualCardioDistance.value = estimateCardioDistance(cardio);
   manualCardioComment.value = generateCardioDetail(cardio);
+  manualCardioAccompagne.value = false;
+  manualCardioOfficiel.value = false;
   isCardioModalOpen.value = true;
 }
 
@@ -106,7 +133,11 @@ async function saveManualCardio() {
       manualCardioSport.value,
       manualCardioDistance.value,
       manualCardioMinutes.value,
-      manualCardioComment.value
+      manualCardioComment.value,
+      manualCardioAllure.value,
+      manualCardioVitesse.value,
+      manualCardioAccompagne.value,
+      manualCardioOfficiel.value
     );
     isCardioModalOpen.value = false;
     toast.success('Séance cardio enregistrée avec succès !');
@@ -221,6 +252,24 @@ onMounted(() => {
           <div class="form-group">
             <label>Durée réelle (minutes)</label>
             <input type="number" v-model.number="manualCardioMinutes" class="input" />
+          </div>
+          <div class="flex-row gap-2">
+            <div class="form-group w-50">
+              <label>Allure (min/km)</label>
+              <input type="text" v-model="manualCardioAllure" class="input" placeholder="Ex: 05:30" />
+            </div>
+            <div class="form-group w-50">
+              <label>Vitesse (km/h)</label>
+              <input type="number" step="0.1" v-model.number="manualCardioVitesse" class="input" />
+            </div>
+          </div>
+          <div class="flex-row gap-4 mt-2 mb-2">
+            <label class="flex-row gap-2 align-center">
+              <input type="checkbox" v-model="manualCardioAccompagne" /> Accompagné
+            </label>
+            <label class="flex-row gap-2 align-center">
+              <input type="checkbox" v-model="manualCardioOfficiel" /> Officiel (Course / Event)
+            </label>
           </div>
           <div class="form-group">
             <label>Commentaire</label>

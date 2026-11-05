@@ -499,8 +499,8 @@ button, input, select, textarea {
 
   &.edit, &.edit-btn, &.edit-btn-color {
     &:hover {
-      color: var(--color-primary) !important;
-      background-color: color-mix(in srgb, var(--color-primary) 15%, transparent) !important;
+      color: var(--color-info) !important;
+      background-color: color-mix(in srgb, var(--color-info) 15%, transparent) !important;
     }
   }
 

@@ -180,8 +180,6 @@ async function handleMarkAsSeen(item: InboxItem) {
       const movie: MovieRecord = {
         titre: item.titre,
         type: item.type,
-        origine: [item.source],
-        dernier_visionnage: item.date || new Date().toISOString().split('T')[0],
         statut: 'Vu'
       };
       movieId = await saveMovie(movie);
@@ -211,8 +209,6 @@ async function handleStartDebrief(item: InboxItem) {
   const movie: MovieRecord = {
     titre: item.titre,
     type: item.type,
-    origine: [item.source],
-    dernier_visionnage: item.date || new Date().toISOString().split('T')[0],
     statut: 'Vu'
   };
   await removeInboxItem(item.id);
@@ -241,8 +237,6 @@ async function handleMarkAllAsSeen() {
       movieId = await saveMovie({
         titre: item.titre,
         type: item.type,
-        origine: [item.source],
-        dernier_visionnage: item.date || new Date().toISOString().split('T')[0],
         statut: 'Vu'
       });
     }

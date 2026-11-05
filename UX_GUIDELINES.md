@@ -41,7 +41,7 @@ Pour toutes les interactions directes sur les entités d'une liste ou d'un table
 * **Au repos :** Discret et neutre, icône grise (`var(--color-text-muted)`), fond transparent.
 * **Modification (`.action-btn.edit`) :**
   - Utilise l'icône `Edit2`.
-  - Au survol : s'illumine dans la **couleur primaire** de l'application (`var(--color-primary)`).
+  - Au survol : s'illumine dans la **couleur info** (`var(--color-info)`).
 * **Duplication (`.action-btn.duplicate`) :**
   - Utilise l'icône `Copy`.
   - Au survol : s'illumine dans la **couleur secondaire** de l'application (`var(--color-secondary)`).

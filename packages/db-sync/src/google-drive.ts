@@ -239,6 +239,80 @@ export class BQDriveSync {
     return Array.from(map.values());
   }
 
+  /**
+   * Exports relevant non-transient settings from localStorage
+   */
+  public exportLocalSettings(): Record<string, { val: string; time: number }> {
+    const settings: Record<string, { val: string; time: number }> = {};
+    const excluded = [
+      'bq_google_auth_token',
+      'bq_google_token_expiry',
+      'bq_drive_connected',
+      'bq_last_sync_time',
+      '-active-tab',
+      '-active-vehicle',
+      '-active-context',
+      '-active-collection-id',
+      '-active-session'
+    ];
+
+    let timestamps: Record<string, number> = {};
+    try {
+      timestamps = JSON.parse(localStorage.getItem('bq_settings_timestamps') || '{}');
+    } catch {
+      timestamps = {};
+    }
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || key === 'bq_settings_timestamps') continue;
+      if (!key.startsWith('bq-') && !key.startsWith('bq_')) continue;
+      if (excluded.some(ex => key === ex || key.endsWith(ex))) continue;
+
+      const val = localStorage.getItem(key);
+      if (val !== null) {
+        settings[key] = {
+          val,
+          time: timestamps[key] || Date.now()
+        };
+      }
+    }
+    return settings;
+  }
+
+  /**
+   * Merges cloud settings into local localStorage and returns the unified map
+   */
+  public mergeSettings(cloudSettings: Record<string, any> = {}): Record<string, { val: string; time: number }> {
+    const local = this.exportLocalSettings();
+    const merged: Record<string, { val: string; time: number }> = { ...local };
+    let timestamps: Record<string, number> = {};
+    try {
+      timestamps = JSON.parse(localStorage.getItem('bq_settings_timestamps') || '{}');
+    } catch {
+      timestamps = {};
+    }
+
+    for (const [key, cloudEntry] of Object.entries(cloudSettings)) {
+      const cloudVal = typeof cloudEntry === 'object' && cloudEntry !== null && 'val' in cloudEntry ? String(cloudEntry.val) : String(cloudEntry);
+      const cloudTime = typeof cloudEntry === 'object' && cloudEntry !== null && 'time' in cloudEntry ? Number(cloudEntry.time) : 0;
+
+      const localEntry = local[key];
+      if (!localEntry) {
+        localStorage.setItem(key, cloudVal);
+        timestamps[key] = cloudTime || Date.now();
+        merged[key] = { val: cloudVal, time: timestamps[key] };
+      } else if (cloudTime > (localEntry.time || 0)) {
+        localStorage.setItem(key, cloudVal);
+        timestamps[key] = cloudTime;
+        merged[key] = { val: cloudVal, time: cloudTime };
+      }
+    }
+
+    localStorage.setItem('bq_settings_timestamps', JSON.stringify(timestamps));
+    return merged;
+  }
+
   public async syncMergeDatabase(cloudData: any): Promise<boolean> {
     const cloudCollections: CollectionSchema[] = cloudData.collections || [];
     const cloudRecords: RecordEntry[] = cloudData.records || [];
@@ -288,6 +362,7 @@ export class BQDriveSync {
         records: localRecords,
         views: localViews,
         templates: localTemplates,
+        settings: this.exportLocalSettings(),
         exportedAt: Date.now()
       };
       
@@ -302,6 +377,7 @@ export class BQDriveSync {
         
         this.syncStatusMsg.value = 'Fusion des données locales et distantes...';
         await this.syncMergeDatabase(cloudBackup);
+        const mergedSettings = this.mergeSettings(cloudBackup.settings || {});
         
         // Get the freshly merged database state to save it back to the Cloud
         const mergedCollections = await this.db.collections.toArray();
@@ -315,6 +391,7 @@ export class BQDriveSync {
           records: mergedRecords,
           views: mergedViews,
           templates: mergedTemplates,
+          settings: mergedSettings,
           exportedAt: Date.now()
         };
         

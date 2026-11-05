@@ -18,8 +18,6 @@ export async function initializeCollections() {
       fields: [
         { id: 'fld-htvkox0pr', name: 'Titre', key: 'titre', type: 'text', required: true },
         { id: 'fld-c7vj265cc', name: 'Type', key: 'type', type: 'select', required: false, options: ['Film', 'Série', 'Documentaire', 'Autre'] },
-        { id: 'fld-wwqyw6ijv', name: 'Dernier visionnage', key: 'dernier_visionnage', type: 'date', required: false },
-        { id: 'fld-a0atg996x', name: 'Origine', key: 'origine', type: 'tags', required: false },
         { id: 'fld-pz762hb8a', name: 'Avis & Ressentis', key: 'avis', type: 'text', required: false },
         { id: 'fld-n0t3sc0r8', name: 'Note /10', key: 'note', type: 'number', required: false },
         { id: 'fld-st4tutv1s', name: 'Statut', key: 'statut', type: 'select', required: false, options: ['Vu', 'À voir'] },
@@ -78,13 +76,13 @@ export async function getMovies(statut?: 'Vu' | 'À voir'): Promise<MovieRecord[
   const records = await db.records.where('collectionId').equals(MOVIES_COL_ID).toArray();
   const allViewings = await db.records.where('collectionId').equals(VIEWINGS_COL_ID).toArray();
 
-  // Pre-calculate viewings count per movie ID
-  const viewingsCountMap: Record<string, number> = {};
+  const viewingsByMovie: Record<string, any[]> = {};
   for (const v of allViewings) {
     if (v.deletedAt) continue;
     const mId = v.data?.movie_id;
     if (mId) {
-      viewingsCountMap[mId] = (viewingsCountMap[mId] || 0) + 1;
+      if (!viewingsByMovie[mId]) viewingsByMovie[mId] = [];
+      viewingsByMovie[mId].push(v);
     }
   }
 
@@ -93,18 +91,30 @@ export async function getMovies(statut?: 'Vu' | 'À voir'): Promise<MovieRecord[
   for (const r of records) {
     if (r.deletedAt) continue;
     const d = r.data || {};
-    const itemStatut = d.statut || (d.dernier_visionnage ? 'Vu' : 'À voir');
+    const movieViewings = viewingsByMovie[r.id!] || [];
+    
+    // Sort viewings by date descending
+    movieViewings.sort((a, b) => (b.data.date || '').localeCompare(a.data.date || ''));
+    
+    const count = movieViewings.length;
+    const computedDernierVisionnage = count > 0 ? movieViewings[0].data.date : (d.dernier_visionnage || '');
+    
+    // Distinct origins from viewings
+    let computedOrigines = Array.from(new Set(movieViewings.map(v => v.data.support).filter(Boolean)));
+    if (computedOrigines.length === 0 && d.origine) {
+        computedOrigines = Array.isArray(d.origine) ? d.origine : [d.origine];
+    }
+
+    const itemStatut = d.statut || (computedDernierVisionnage ? 'Vu' : 'À voir');
 
     if (statut && itemStatut !== statut) continue;
-
-    const count = (r.id ? viewingsCountMap[r.id] : 0) || (d.dernier_visionnage ? 1 : 0);
 
     list.push({
       id: r.id,
       titre: d.titre || 'Sans titre',
       type: d.type || 'Film',
-      dernier_visionnage: d.dernier_visionnage || '',
-      origine: Array.isArray(d.origine) ? d.origine : d.origine ? [d.origine] : [],
+      dernier_visionnage: computedDernierVisionnage,
+      origine: computedOrigines,
       avis: d.avis || '',
       note: d.note !== undefined && d.note !== null ? Number(d.note) : undefined,
       statut: itemStatut,
@@ -138,8 +148,6 @@ export async function saveMovie(movie: MovieRecord): Promise<string> {
   const cleanData: Record<string, any> = {
     titre: String(movie.titre || '').trim(),
     type: movie.type || 'Film',
-    dernier_visionnage: movie.dernier_visionnage ? String(movie.dernier_visionnage) : '',
-    origine: Array.isArray(movie.origine) ? movie.origine.map(String) : [],
     avis: movie.avis ? String(movie.avis) : '',
     note: movie.note !== undefined && movie.note !== null ? Number(movie.note) : null,
     statut: movie.statut || 'Vu',
@@ -166,11 +174,18 @@ export async function saveMovie(movie: MovieRecord): Promise<string> {
  * Deletes a movie record and all its associated viewings.
  */
 export async function deleteMovie(id: string): Promise<void> {
-  await db.records.delete(id);
+  const record = await db.records.get(id);
+  if (record) {
+    record.deletedAt = Date.now();
+    record.updatedAt = Date.now();
+    await db.records.put(record);
+  }
   const viewings = await db.records.where('collectionId').equals(VIEWINGS_COL_ID).toArray();
   for (const v of viewings) {
     if (v.data?.movie_id === id && v.id) {
-      await db.records.delete(v.id);
+      v.deletedAt = Date.now();
+      v.updatedAt = Date.now();
+      await db.records.put(v);
     }
   }
 }
@@ -224,43 +239,18 @@ export async function saveViewing(viewing: MovieViewing): Promise<string> {
 
   await db.records.put(JSON.parse(JSON.stringify(record)));
 
-  // Synchronize parent movie's latest date & origin
-  if (viewing.movie_id) {
-    const parent = await db.records.get(viewing.movie_id);
-    if (parent && !parent.deletedAt) {
-      const allViewings = await getViewingsForMovie(viewing.movie_id);
-      if (allViewings.length > 0) {
-        parent.data.dernier_visionnage = allViewings[0].date;
-        parent.data.statut = 'Vu';
-        const currentOrigins: string[] = Array.isArray(parent.data.origine) ? parent.data.origine : [];
-        if (viewing.support && !currentOrigins.includes(viewing.support)) {
-          currentOrigins.push(viewing.support);
-          parent.data.origine = currentOrigins;
-        }
-        parent.updatedAt = Date.now();
-        await db.records.put(JSON.parse(JSON.stringify(parent)));
-      }
-    }
-  }
-
   return id;
 }
 
 /**
  * Deletes a viewing and re-calculates the parent movie's latest viewing date.
  */
-export async function deleteViewing(viewingId: string, movieId?: string): Promise<void> {
-  await db.records.delete(viewingId);
-  if (movieId) {
-    const parent = await db.records.get(movieId);
-    if (parent && !parent.deletedAt) {
-      const allViewings = await getViewingsForMovie(movieId);
-      if (allViewings.length > 0) {
-        parent.data.dernier_visionnage = allViewings[0].date;
-      }
-      parent.updatedAt = Date.now();
-      await db.records.put(JSON.parse(JSON.stringify(parent)));
-    }
+export async function deleteViewing(viewingId: string): Promise<void> {
+  const viewing = await db.records.get(viewingId);
+  if (viewing) {
+    viewing.deletedAt = Date.now();
+    viewing.updatedAt = Date.now();
+    await db.records.put(viewing);
   }
 }
 
@@ -328,7 +318,12 @@ export async function addInboxItems(items: Array<Omit<InboxItem, 'id'>>): Promis
  * Deletes an inbox item
  */
 export async function removeInboxItem(id: string): Promise<void> {
-  await db.records.delete(id);
+  const item = await db.records.get(id);
+  if (item) {
+    item.deletedAt = Date.now();
+    item.updatedAt = Date.now();
+    await db.records.put(item);
+  }
 }
 
 /**
@@ -337,7 +332,11 @@ export async function removeInboxItem(id: string): Promise<void> {
 export async function clearInbox(): Promise<void> {
   const records = await db.records.where('collectionId').equals(INBOX_COL_ID).toArray();
   for (const r of records) {
-    if (r.id) await db.records.delete(r.id);
+    if (r.id) {
+      r.deletedAt = Date.now();
+      r.updatedAt = Date.now();
+      await db.records.put(r);
+    }
   }
 }
 

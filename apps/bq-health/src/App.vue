@@ -25,8 +25,8 @@ const handleNavigate = (tab: any) => {
 
 const navItems: NavItem[] = [
   { id: 'home', label: 'Cockpit', icon: Activity },
-  { id: 'rdv', label: 'RDVs', icon: Calendar },
-  { id: 'traitements', label: 'Pilulier', icon: Heart },
+  { id: 'rdv', label: 'RDVs & Suivi', icon: Calendar },
+  { id: 'traitements', label: 'Médication', icon: Heart },
   { id: 'mensurations', label: 'Mesures', icon: Ruler },
   { id: 'vaccins', label: 'Vaccins', icon: ShieldCheck },
   { id: 'settings', label: 'Paramètres', icon: Settings },

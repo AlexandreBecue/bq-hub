@@ -268,7 +268,7 @@ async function handleGenerateReview() {
     generatedAvis.value = res.avis;
     rating.value = res.note;
     selectedMention.value = res.mention;
-    toast.success('Synthèse et note suggérées avec succès ! ✨');
+    toast.success('Synthèse et note suggérées avec succès !');
   } catch (err: any) {
     console.error('Erreur technique Gemini (Synthèse) :', err);
     if (err.message && (err.message.includes('503') || err.message.includes('high demand') || err.message.includes('UNAVAILABLE'))) {
@@ -315,8 +315,6 @@ async function handleSaveToLibrary() {
     id: editingMovieId.value,
     titre: movieTitle.value.trim(),
     type: selectedType.value,
-    origine: [selectedOrigin.value], // will be appended automatically if existing movie via saveViewing
-    dernier_visionnage: watchDate.value,
     avis: generatedAvis.value.trim(),
     note: rating.value,
     statut: 'Vu',

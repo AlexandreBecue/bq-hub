@@ -7,7 +7,7 @@ import {
   getLessivesRecords, 
   formatToFrenchDate 
 } from '../db/queries';
-import { Plus, Calendar, Check, Clock, ShieldAlert, X, Archive, Trash2 } from '@lucide/vue';
+import { Plus, X, Calendar, Trash2, ShieldAlert, Archive, Check, Edit2 } from '@lucide/vue';
 import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
@@ -18,6 +18,7 @@ const lessives = ref<RecordEntry[]>([]);
 const isLoading = ref(true);
 
 const showAddModal = ref(false);
+const editingLessiveId = ref<string | null>(null);
 
 // New Laundry Form State
 const dateSaisie = ref(new Date().toISOString().split('T')[0]);
@@ -70,42 +71,69 @@ const deselectAll = () => {
   selectedGarments.value = [];
 };
 
-// Add Laundry Event
+const openAddModal = () => {
+  editingLessiveId.value = null;
+  dateSaisie.value = new Date().toISOString().split('T')[0];
+  selectedGarments.value = [];
+  makeAvailableImmediately.value = false;
+  showAddModal.value = true;
+};
+
+const openEditLessive = (les: RecordEntry) => {
+  editingLessiveId.value = les.id || null;
+  dateSaisie.value = les.data.date || new Date().toISOString().split('T')[0];
+  selectedGarments.value = [...(les.data.vetements_laves || [])];
+  makeAvailableImmediately.value = false;
+  showAddModal.value = true;
+};
+
+// Add / Edit Laundry Event
 const handleAddLessive = async () => {
   if (selectedGarments.value.length === 0) return;
 
   try {
     const now = Date.now();
-    // 1. Add historical Lessive record
-    const newRecord: RecordEntry = {
-      id: `rec-${generateId()}`,
-      collectionId: LESSIVES_COL_ID,
-      data: {
-        date: dateSaisie.value,
-        vetements_laves: [...selectedGarments.value]
-      },
-      createdAt: now,
-      updatedAt: now
-    };
 
-    await db.records.add(newRecord);
-
-    // 2. Update washed clothes availability state
-    // If "makeAvailableImmediately" is true, they become available (is_available: true)
-    // If false, they are marked as unavailable (is_available: false) since they are still wet/drying!
-    for (const id of selectedGarments.value) {
-      await db.records.update(id, {
-        'data.is_available': makeAvailableImmediately.value,
+    if (editingLessiveId.value) {
+      await db.records.update(editingLessiveId.value, {
+        data: {
+          date: dateSaisie.value,
+          vetements_laves: [...selectedGarments.value]
+        },
         updatedAt: now
       });
+      toast.success('Lessive modifiée avec succès !');
+    } else {
+      // 1. Add historical Lessive record
+      const newRecord: RecordEntry = {
+        id: `rec-${generateId()}`,
+        collectionId: LESSIVES_COL_ID,
+        data: {
+          date: dateSaisie.value,
+          vetements_laves: [...selectedGarments.value]
+        },
+        createdAt: now,
+        updatedAt: now
+      };
+
+      await db.records.add(newRecord);
+
+      // 2. Update washed clothes availability state
+      for (const id of selectedGarments.value) {
+        await db.records.update(id, {
+          'data.is_available': makeAvailableImmediately.value,
+          updatedAt: now
+        });
+      }
+      toast.success('Lessive enregistrée !');
     }
 
     showAddModal.value = false;
+    editingLessiveId.value = null;
     selectedGarments.value = [];
     makeAvailableImmediately.value = false;
     emit('data-updated');
     loadData();
-    toast.success('Lessive enregistrée !');
   } catch (err) {
     console.error(err);
   }
@@ -134,7 +162,7 @@ const handleDeleteLessive = async (id: string) => {
         <p class="text-sub">Enregistre tes machines au moment d'étendre ton linge pour suivre son cycle de séchage et réinitialiser sa fraîcheur.</p>
       </div>
       <div class="view-actions">
-        <button @click="showAddModal = true" class="btn btn-primary">
+        <button @click="openAddModal" class="btn btn-primary">
           <Plus :size="18" /> Nouvelle lessive
         </button>
       </div>
@@ -159,9 +187,14 @@ const handleDeleteLessive = async (id: string) => {
           <div v-for="les in lessives" :key="les.id" class="history-item">
             <div class="history-header">
               <span class="history-date flex-row"><Calendar :size="14" /> {{ formatToFrenchDate(les.data.date) }}</span>
-              <button @click="handleDeleteLessive(les.id!)" class="action-btn delete" title="Supprimer">
-                <Trash2 :size="14" />
-              </button>
+              <div class="flex-row gap-1">
+                <button @click="openEditLessive(les)" class="action-btn edit" title="Modifier">
+                  <Edit2 :size="14" />
+                </button>
+                <button @click="handleDeleteLessive(les.id!)" class="action-btn delete" title="Supprimer">
+                  <Trash2 :size="14" />
+                </button>
+              </div>
             </div>
             <div class="history-clothes text-sub mt-2">
               <div class="flex-row flex-wrap gap-1">
@@ -200,7 +233,7 @@ const handleDeleteLessive = async (id: string) => {
     <div v-if="showAddModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>Enregistrer une lessive</h3>
+          <h3>{{ editingLessiveId ? 'Modifier la lessive' : 'Enregistrer une lessive' }}</h3>
           <button @click="showAddModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">

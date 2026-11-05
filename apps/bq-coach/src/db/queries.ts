@@ -113,7 +113,11 @@ export async function initializeCollections() {
         { id: '8dfdrlp2n', name: 'Sport', key: 'sport', type: 'select', required: true, options: ['Course à pied', 'Cyclisme', 'Natation'] },
         { id: 'rxuakmgz7', name: 'Distance', key: 'distance', type: 'number', required: true, unit: 'km' },
         { id: '4goqyrci2', name: 'Temps', key: 'temps', type: 'text', required: true },
-        { id: 'f_comm', name: 'Commentaire', key: 'commentaire', type: 'text', required: false }
+        { id: '3tz04j8aa', name: 'Allure', key: 'allure', type: 'text', required: false },
+        { id: '4bchwi1vr', name: 'Vitesse', key: 'vitesse', type: 'number', required: false, unit: 'km/h' },
+        { id: 'zq17tzw7t', name: 'Accompagné', key: 'accompagne', type: 'boolean', required: false },
+        { id: '8nra88acs', name: 'Officiel', key: 'officiel', type: 'boolean', required: false },
+        { id: 'd0dptov9p', name: 'Commentaire', key: 'commentaire', type: 'text', required: false }
       ],
       primaryFieldKey: 'date',
       createdAt: Date.now(),
@@ -551,7 +555,11 @@ export async function logCompletedCardio(
   sport: string,
   distanceKm: number,
   durationMinutes: number,
-  comment: string
+  comment: string,
+  allure: string = '',
+  vitesse: number | null = null,
+  accompagne: boolean = false,
+  officiel: boolean = false
 ) {
   const todayStr = new Date().toISOString().split('T')[0];
   const durationSec = durationMinutes * 60;
@@ -564,6 +572,10 @@ export async function logCompletedCardio(
       sport: sport,
       distance: distanceKm,
       temps: formatHHMMSS(durationSec),
+      allure: allure,
+      vitesse: vitesse,
+      accompagne: accompagne,
+      officiel: officiel,
       commentaire: comment
     },
     createdAt: Date.now(),

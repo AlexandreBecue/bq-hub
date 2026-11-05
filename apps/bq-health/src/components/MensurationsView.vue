@@ -6,7 +6,7 @@ import {
   getMetricsRecords, 
   formatToFrenchDate 
 } from '../db/queries';
-import { Plus, X, Ruler, Scale, ArrowUpRight, ArrowDownLeft } from '@lucide/vue';
+import { Plus, X, Ruler, Scale, ArrowUpRight, ArrowDownLeft, Edit2, Trash2 } from '@lucide/vue';
 import { useToast } from '@bq/theme/useToast';
 
 const emit = defineEmits(['data-updated']);
@@ -16,6 +16,7 @@ const metrics = ref<RecordEntry[]>([]);
 const isLoading = ref(true);
 
 const showAddModal = ref(false);
+const editingMetricId = ref<string | null>(null);
 
 // Form State
 const formMetric = ref({
@@ -112,6 +113,34 @@ const weightProgression = computed(() => {
   };
 });
 
+const openAddModal = () => {
+  editingMetricId.value = null;
+  formMetric.value = {
+    date: new Date().toISOString().split('T')[0],
+    poids: '',
+    taille: formMetric.value.taille,
+    tour_taille: '',
+    tour_epaules: '',
+    tour_poitrine: '',
+    tour_cuisses: ''
+  };
+  showAddModal.value = true;
+};
+
+const openEditMetric = (m: RecordEntry) => {
+  editingMetricId.value = m.id || null;
+  formMetric.value = {
+    date: m.data.date || new Date().toISOString().split('T')[0],
+    poids: String(m.data.poids || ''),
+    taille: String(m.data.taille || ''),
+    tour_taille: String(m.data.tour_taille || ''),
+    tour_epaules: String(m.data.tour_epaules || ''),
+    tour_poitrine: String(m.data.tour_poitrine || ''),
+    tour_cuisses: String(m.data.tour_cuisses || '')
+  };
+  showAddModal.value = true;
+};
+
 // Handle Log
 const handleAddMetric = async () => {
   const p = Number(formMetric.value.poids) || 0;
@@ -121,24 +150,36 @@ const handleAddMetric = async () => {
   }
 
   try {
-    const newRecord: RecordEntry = {
-      id: `rec-${generateId()}`,
-      collectionId: METRICS_COL_ID,
-      data: {
-        date: formMetric.value.date,
-        poids: p,
-        taille: Number(formMetric.value.taille) || null,
-        tour_taille: Number(formMetric.value.tour_taille) || null,
-        tour_epaules: Number(formMetric.value.tour_epaules) || null,
-        tour_poitrine: Number(formMetric.value.tour_poitrine) || null,
-        tour_cuisses: Number(formMetric.value.tour_cuisses) || null
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+    const dataPayload = {
+      date: formMetric.value.date,
+      poids: p,
+      taille: Number(formMetric.value.taille) || null,
+      tour_taille: Number(formMetric.value.tour_taille) || null,
+      tour_epaules: Number(formMetric.value.tour_epaules) || null,
+      tour_poitrine: Number(formMetric.value.tour_poitrine) || null,
+      tour_cuisses: Number(formMetric.value.tour_cuisses) || null
     };
 
-    await db.records.add(newRecord);
+    if (editingMetricId.value) {
+      await db.records.update(editingMetricId.value, {
+        data: dataPayload,
+        updatedAt: Date.now()
+      });
+      toast.success('Mesures modifiées avec succès !');
+    } else {
+      const newRecord: RecordEntry = {
+        id: `rec-${generateId()}`,
+        collectionId: METRICS_COL_ID,
+        data: dataPayload,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await db.records.add(newRecord);
+      toast.success('Mesures corporelles enregistrées !');
+    }
+
     showAddModal.value = false;
+    editingMetricId.value = null;
     formMetric.value = {
       date: new Date().toISOString().split('T')[0],
       poids: '',
@@ -150,7 +191,6 @@ const handleAddMetric = async () => {
     };
     emit('data-updated');
     loadData();
-    toast.success('Mesures corporelles enregistrées !');
   } catch (err) {
     console.error(err);
   }
@@ -193,7 +233,7 @@ const handleDeleteMetric = async (id: string) => {
     <div v-else-if="metrics.length === 0" class="card glass text-center py-4 text-muted text-sm">
       <Scale class="mx-auto mb-2 text-muted" :size="36" />
       <p>Aucun relevé corporel enregistré pour le moment.</p>
-      <button @click="showAddModal = true" class="btn btn-primary btn-sm mt-3">Enregistrer mes premières mesures</button>
+      <button @click="openAddModal" class="btn btn-primary btn-sm mt-3">Enregistrer mes premières mesures</button>
     </div>
 
     <div v-else class="metrics-dashboard-grid">
@@ -261,7 +301,10 @@ const handleDeleteMetric = async (id: string) => {
             <div v-for="m in metrics" :key="m.id" class="history-metric-item">
               <div class="item-header flex-row justify-between">
                 <span class="item-date font-bold text-sm">{{ formatToFrenchDate(m.data.date) }}</span>
-                <button @click="handleDeleteMetric(m.id!)" class="delete-link text-xs">Supprimer</button>
+                <div class="flex-row gap-1">
+                  <button @click="openEditMetric(m)" class="action-btn edit" title="Modifier"><Edit2 :size="13" /></button>
+                  <button @click="handleDeleteMetric(m.id!)" class="action-btn delete" title="Supprimer"><Trash2 :size="13" /></button>
+                </div>
               </div>
 
               <div class="item-grid mt-3">
@@ -292,7 +335,7 @@ const handleDeleteMetric = async (id: string) => {
     <div v-if="showAddModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>Saisir des mesures corporelles</h3>
+          <h3>{{ editingMetricId ? 'Modifier les mesures corporelles' : 'Saisir des mesures corporelles' }}</h3>
           <button @click="showAddModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">

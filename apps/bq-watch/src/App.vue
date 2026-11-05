@@ -3,18 +3,17 @@ import { ref, onMounted } from 'vue';
 import type { MovieRecord } from './types';
 import LibraryView from './components/LibraryView.vue';
 import DebriefView from './components/DebriefView.vue';
-import InboxView from './components/InboxView.vue';
 import WatchlistView from './components/WatchlistView.vue';
 import SettingsView from './components/SettingsView.vue';
 import { initializeCollections } from './db/queries';
-import { Film, Sparkles, Inbox, Bookmark, Settings } from '@lucide/vue';
+import { Film, Sparkles, Bookmark, Settings } from '@lucide/vue';
 import AppHeader from '@bq/theme/AppHeader.vue';
 import AppBottomNav, { type NavItem } from '@bq/theme/AppBottomNav.vue';
 import ToastsContainer from '@bq/theme/ToastsContainer.vue';
 import ReloadPrompt from '@bq/theme/ReloadPrompt.vue';
 import './style.scss';
 
-const activeTab = ref<'library' | 'debrief' | 'inbox' | 'watchlist' | 'settings'>(
+const activeTab = ref<'library' | 'debrief' | 'watchlist' | 'settings'>(
   (localStorage.getItem('bq-watch-active-tab') as any) || 'library'
 );
 
@@ -33,7 +32,6 @@ const handleStartDebriefFromOtherView = (movie: MovieRecord) => {
 const navItems: NavItem[] = [
   { id: 'library', label: 'Bibliothèque', icon: Film },
   { id: 'debrief', label: 'Débrief', icon: Sparkles },
-  { id: 'inbox', label: 'Inbox', icon: Inbox },
   { id: 'watchlist', label: 'À voir', icon: Bookmark },
   { id: 'settings', label: 'Paramètres', icon: Settings },
 ];
@@ -67,11 +65,6 @@ onMounted(async () => {
         v-else-if="activeTab === 'debrief'" 
         :key="'deb-' + viewKey" 
         :initialMovie="debriefInitialMovie"
-        @data-updated="triggerDataUpdate" 
-      />
-      <InboxView 
-        v-else-if="activeTab === 'inbox'" 
-        :key="'inbox-' + viewKey" 
         @data-updated="triggerDataUpdate" 
       />
       <WatchlistView 
