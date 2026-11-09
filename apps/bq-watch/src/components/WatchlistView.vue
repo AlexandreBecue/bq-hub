@@ -176,10 +176,9 @@ async function handleMarkAsWatched(item: MovieRecord) {
       watchlist_source_id: item.id
     };
   } else {
-    // First time watch: use the item from watchlist
+    // First time watch: use the item from watchlist (do not flag as Vu yet so debrief treats it as a new watch)
     movieToDebrief = {
       ...item,
-      statut: 'Vu',
       watchlist_source_id: item.id
     };
   }

@@ -377,9 +377,6 @@ const carbsLength = computed(() => activeVehicleCarburants.value.length);
 
           <div v-else-if="activeVehicleCarburants.length === 0" class="text-center py-4 text-muted">
             <p>Aucun plein de carburant enregistré pour ce véhicule.</p>
-            <button @click="openAddModal" class="btn btn-primary btn-sm mt-3">
-              Enregistrer mon premier plein
-            </button>
           </div>
 
           <div v-else class="carburants-history-list">

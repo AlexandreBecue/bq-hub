@@ -96,3 +96,25 @@ Ces tâches concernent l'homogénéisation de l'expérience utilisateur et de la
 * [x] **bq-cook** : revoir la favicon : manche du couteau en couleur secondaire
 * [x] **bq-bank** : revoir la favicon : intégrer la couleur secondaire dans l'icone
 * [x] **bq-graph** : revoir la favicon : axes du graphique en couleur secondaire
+* [x] **bq-graph** : Les settings n'ont pas la même largeur que sur les autres applications (on n'a pas de marges laterales)
+* [x] **bq-graph** : On a récemment ajouté des champs oubliés dans bq-coach au niveau des séances cardio, ces champs n'apparraissent pas dans bq-graph
+* [x] **bq-cloth** : Erreur lors de la modification d'une tenue
+* [x] **bq-cloth** : J'ai trouvé des émojis dans la popup d'ajout/modification de tenues types, il me semble qu'on s'était mis d'accord pour supprimer les emojis pour ne mettre que des icones lucide
+* [x] **bq-coach** : Permettre de modifier la date de la sortie cardio
+* [x] **bq-coach** : J'ai retouché légèrement le formulaire de saisie de sortie cardio, ne pas écraser ces modifications
+* [x] **bq-coach** : La saisie de la durée doit être au format hh:mm:ss, on n'écrit pas 90.5 minutes pour 01:30:30
+* [x] **bq-coach** : Le hover de la couleur primary est rouge, trop éloigné de la couleur primary
+* [x] **bq-coach** : Les sports proposés pour les séances cardio sont statiques et s'affichent en double. Il faudrait que l'utilisateur puisse créer ses sports dans les settings, et ne pas les afficher en double.
+* [x] **bq-hub** : Le petit décallage des icones du footer en fonction du overflow-x de la page consultée est génant (si la page est scrollable, la scrollbar s'affiche et cela réduit l'espace disponible pour le reste, donc crée un décallage). On devrait mettre un overflow-x: visible même quand la page n'est pas scrollable pour limiter cet effet de décalage
+* [x] **bq-hub** : l'icone calendrier noire est peu lisible, les autres icones (comme les flèches des select) sont plus claires (blanc ou gris clair), il faut utiliser cette même couleur
+* [x] **bq-hub** : lorsque deux champs de formulaire sont côte-à-côte on met un w-50 pour qu'ils prennent 50% de l'espace disponible chacun. Pourtant, si ces deux champs sont des select ou des champs de type date par exemple, le w-50 n'est pas respecté et les champs sont moins larges que l'espace disponible. J'ai remarqué ça dans la popup d'enregistrement de séance cardio de bq-coach mais j'imagine que c'est pareil ailleurs
+* [x] **bq-hub** : retirer les boutons d’ajout de données qui s’affichent quand le composant est vide. Si aucune donnée n’existe, on affiche le message indiquant l’absence de données, et l’utilisateur peut cliquer sur le bouton d’ajout déjà existant ; pas besoin d’en ajouter un nouveau
+* [x] **bq-health** : quand le médicament du jour est pris, le bouton est blanc sur gris clair donc illisible
+* [x] **bq-health** : il y a deux boutons identiques pour ajouter un examen médical, supprimer l
+* [x] **bq-health** : double icône sur l’ajout de médication/traitement (le + suivi de l'icone dédiée au type de médicament), supprimer la deuxième
+* [x] **bq-health** : revoir les termes “automédication et ordonnance” car on veut plutôt  différencier les traitements et les prises ponctuelles
+* [x] **bq-health** : les médications ponctuelles ne doivent jamais être actives, puisqu’elles sont ponctuelles
+* [x] **bq-watch** : Avec l'ajout du bouton d'import, les boutons qui débordent sur mobile
+* [x] **bq-watch** : Le débrief en cours disparaît au changement d’onglet
+* [x] **bq-watch** : La mention “ce film est déjà dans la bibliothèque” apparait même si c’est pas le cas
+* [x] **bq-watch** : Améliorer le prompt pour que les debriefs soient formulés de la même manière (rédigés à la 3e personne, pas de spoil, pas de comparaison avec d'autres films, etc.)

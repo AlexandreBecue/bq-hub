@@ -221,9 +221,6 @@ const handleDeleteGame = async (id: string) => {
     <div v-else-if="filteredGames.length === 0" class="empty-state card glass text-center">
       <ShieldAlert class="empty-icon text-muted" :size="48" />
       <h3>Ludothèque vide ou aucun filtre correspondant</h3>
-      <button @click="openAddModal" class="btn btn-primary mt-4">
-        <Plus :size="18" /> Ajouter un jeu
-      </button>
     </div>
 
     <div v-else class="games-container">

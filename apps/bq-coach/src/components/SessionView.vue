@@ -32,8 +32,9 @@ const isPlayerActive = ref(false);
 // State for manual cardio completion modal
 const isCardioModalOpen = ref(false);
 const cardioSports = ref<any[]>([]);
+const manualCardioDate = ref<string>(new Date().toISOString().split('T')[0]);
 const manualCardioDistance = ref<number>(5.0);
-const manualCardioMinutes = ref<number>(30);
+const manualCardioDuration = ref<string>('00:30:00');
 const manualCardioSport = ref<string>('Course à pied');
 const manualCardioComment = ref<string>('');
 
@@ -44,14 +45,27 @@ const manualCardioOfficiel = ref<boolean>(false);
 
 import { watch } from 'vue';
 
-// Auto-calculate speed and pace when distance or minutes change
-watch([manualCardioDistance, manualCardioMinutes], ([dist, mins]) => {
-  if (dist > 0 && mins > 0) {
-    // Vitesse en km/h = distance / (minutes / 60)
-    manualCardioVitesse.value = Number((dist / (mins / 60)).toFixed(2));
+function parseDurationToSeconds(val: string): number {
+  if (!val || typeof val !== 'string') return 0;
+  const parts = val.trim().split(':').map(p => Number(p) || 0);
+  if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  } else if (parts.length === 2) {
+    return parts[0] * 60 + parts[1];
+  } else if (parts.length === 1) {
+    return parts[0] * 60;
+  }
+  return 0;
+}
+
+// Auto-calculate speed and pace when distance or duration changes
+watch([manualCardioDistance, manualCardioDuration], ([dist, dur]) => {
+  const totalSeconds = parseDurationToSeconds(dur);
+  if (dist > 0 && totalSeconds > 0) {
+    // Vitesse en km/h = distance / (secondes / 3600)
+    manualCardioVitesse.value = Number((dist / (totalSeconds / 3600)).toFixed(2));
     
     // Allure en min:sec/km
-    const totalSeconds = mins * 60;
     const secondsPerKm = totalSeconds / dist;
     const m = Math.floor(secondsPerKm / 60);
     const s = Math.round(secondsPerKm % 60);
@@ -116,10 +130,28 @@ function onPlayerCancel() {
   isPlayerActive.value = false;
 }
 
-function openCardioModal() {
+async function openCardioModal() {
+  const todayStr = new Date().toISOString().split('T')[0];
+  manualCardioDate.value = todayStr;
+  cardioSports.value = await getCardioSports();
   const cardio = currentWorkout.value?.cardio;
-  manualCardioSport.value = cardio?.exerciseId === 'cycling' ? 'Cyclisme' : 'Course à pied';
-  manualCardioMinutes.value = cardio?.durationMinutes || 30;
+  
+  if (cardio?.exerciseId === 'cycling') {
+    manualCardioSport.value = 'Cyclisme';
+  } else if (cardio?.exerciseId === 'swimming') {
+    manualCardioSport.value = 'Natation';
+  } else if (cardioSports.value.some(s => s.data.nom === 'Course à pied')) {
+    manualCardioSport.value = 'Course à pied';
+  } else if (cardioSports.value.length > 0) {
+    manualCardioSport.value = cardioSports.value[0].data.nom;
+  } else {
+    manualCardioSport.value = 'Course à pied';
+  }
+
+  const mins = cardio?.durationMinutes || 30;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  manualCardioDuration.value = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:00`;
   manualCardioDistance.value = estimateCardioDistance(cardio);
   manualCardioComment.value = generateCardioDetail(cardio);
   manualCardioAccompagne.value = false;
@@ -132,12 +164,13 @@ async function saveManualCardio() {
     await logCompletedCardio(
       manualCardioSport.value,
       manualCardioDistance.value,
-      manualCardioMinutes.value,
+      manualCardioDuration.value,
       manualCardioComment.value,
       manualCardioAllure.value,
       manualCardioVitesse.value,
       manualCardioAccompagne.value,
-      manualCardioOfficiel.value
+      manualCardioOfficiel.value,
+      manualCardioDate.value
     );
     isCardioModalOpen.value = false;
     toast.success('Séance cardio enregistrée avec succès !');
@@ -237,21 +270,29 @@ onMounted(() => {
           <button class="modal-close" @click="isCardioModalOpen = false">×</button>
         </div>
         <div class="modal-body">
-          <div class="form-group">
-            <label>Sport</label>
-            <select v-model="manualCardioSport" class="select">
-              <option v-for="s in (cardioSports.length ? cardioSports : [{ id: '1', data: { nom: 'Course à pied' } }, { id: '2', data: { nom: 'Cyclisme' } }, { id: '3', data: { nom: 'Natation' } }])" :key="s.id" :value="s.data.nom">
-                {{ s.data.nom }}
-              </option>
-            </select>
+          <div class="flex-row gap-2">
+            <div class="form-group w-50">
+              <label>Date</label>
+              <input type="date" v-model="manualCardioDate" class="input" />
+            </div>
+            <div class="form-group w-50">
+              <label>Sport</label>
+              <select v-model="manualCardioSport" class="select">
+                <option v-for="s in cardioSports" :key="s.id" :value="s.data.nom">
+                  {{ s.data.nom }}
+                </option>
+              </select>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Distance (km)</label>
-            <input type="number" step="0.1" v-model.number="manualCardioDistance" class="input" />
-          </div>
-          <div class="form-group">
-            <label>Durée réelle (minutes)</label>
-            <input type="number" v-model.number="manualCardioMinutes" class="input" />
+          <div class="flex-row gap-2">
+            <div class="form-group w-50">
+              <label>Distance (km)</label>
+              <input type="number" step="1" v-model.number="manualCardioDistance" class="input" />
+            </div>
+            <div class="form-group w-50">
+              <label>Durée (hh:mm:ss)</label>
+              <input type="text" v-model="manualCardioDuration" class="input" placeholder="00:30:00" />
+            </div>
           </div>
           <div class="flex-row gap-2">
             <div class="form-group w-50">
@@ -263,17 +304,17 @@ onMounted(() => {
               <input type="number" step="0.1" v-model.number="manualCardioVitesse" class="input" />
             </div>
           </div>
+          <div class="form-group">
+            <label>Commentaire</label>
+            <input type="text" v-model="manualCardioComment" class="input" placeholder="Ex: Sortie en endurance..." />
+          </div>
           <div class="flex-row gap-4 mt-2 mb-2">
             <label class="flex-row gap-2 align-center">
               <input type="checkbox" v-model="manualCardioAccompagne" /> Accompagné
             </label>
             <label class="flex-row gap-2 align-center">
-              <input type="checkbox" v-model="manualCardioOfficiel" /> Officiel (Course / Event)
+              <input type="checkbox" v-model="manualCardioOfficiel" /> Officiel
             </label>
-          </div>
-          <div class="form-group">
-            <label>Commentaire</label>
-            <input type="text" v-model="manualCardioComment" class="input" placeholder="Ex: Sortie en endurance..." />
           </div>
         </div>
         <div class="modal-footer">

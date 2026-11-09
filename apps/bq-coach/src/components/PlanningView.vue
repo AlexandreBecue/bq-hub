@@ -654,7 +654,7 @@ onMounted(async () => {
               <div class="form-group">
                 <label>Sport</label>
                 <select v-model="draftWorkout.cardio.exerciseId" class="select">
-                  <option v-for="s in (cardioSports.length ? cardioSports : [{ id: 'running', data: { nom: 'Course à pied', icone: 'running' } }, { id: 'cycling', data: { nom: 'Cyclisme', icone: 'cycling' } }])" :key="s.id" :value="s.data.icone || s.id">
+                  <option v-for="s in cardioSports" :key="s.id" :value="s.data.icone || s.id">
                     {{ s.data.nom }}
                   </option>
                 </select>

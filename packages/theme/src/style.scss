@@ -7,6 +7,10 @@
   padding: 0;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   font-family: var(--font-family);
   background-color: var(--color-bg-page);
@@ -103,6 +107,11 @@ button, input, select, textarea {
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--color-text-sub);
+  }
+
+  .input, .select, .textarea, input, select, textarea {
+    width: 100%;
+    box-sizing: border-box;
   }
 }
 
@@ -286,6 +295,10 @@ button, input, select, textarea {
   flex-direction: row !important; 
   align-items: center; 
   gap: 0.5rem; 
+
+  > .form-group {
+    align-self: flex-start;
+  }
 }
 .flex-col { display: flex !important; flex-direction: column !important; }
 .align-center { align-items: center !important; }
@@ -356,6 +369,10 @@ button, input, select, textarea {
 
 /* Display & Layout */
 .w-100 { width: 100% !important; }
+.w-75 { width: 75% !important; flex: 0 0 calc(75% - 0.5rem) !important; min-width: 0 !important; }
+.w-50 { width: 50% !important; flex: 1 1 0% !important; min-width: 0 !important; }
+.w-33 { width: 33.333% !important; flex: 1 1 0% !important; min-width: 0 !important; }
+.w-25 { width: 25% !important; flex: 1 1 0% !important; min-width: 0 !important; }
 .block { display: block !important; }
 .inline-block { display: inline-block !important; }
 .text-center { text-align: center !important; }
@@ -595,6 +612,22 @@ button, input, select, textarea {
     background-color: var(--color-bg-page);
     color: var(--color-text-main);
     padding: 0.5rem;
+  }
+}
+
+/* Date / Time Picker Indicators (Calendar Icon) */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(0.72) brightness(1.1);
+  opacity: 0.85;
+  transition: opacity 0.2s ease, filter 0.2s ease;
+
+  &:hover {
+    opacity: 1;
+    filter: invert(0.9) brightness(1.2);
   }
 }
 

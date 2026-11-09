@@ -129,6 +129,21 @@ export async function initializeCollections() {
     const existing = await db.collections.get(col.id);
     if (!existing) {
       await db.collections.put(col);
+    } else {
+      let fieldsUpdated = false;
+      const existingFieldKeys = new Set(existing.fields.map((f: any) => f.key));
+      const updatedFields = [...existing.fields];
+      for (const field of col.fields) {
+        if (!existingFieldKeys.has(field.key)) {
+          updatedFields.push(field);
+          fieldsUpdated = true;
+        }
+      }
+      if (fieldsUpdated) {
+        existing.fields = updatedFields;
+        existing.updatedAt = Date.now();
+        await db.collections.put(existing);
+      }
     }
   }
 
@@ -162,11 +177,62 @@ export async function initializeCollections() {
 }
 
 /**
- * Returns available sports from bq-coach - sports collection
+ * Returns available sports from bq-coach - sports collection (deduplicated by name)
  */
 export async function getCardioSports(): Promise<RecordEntry[]> {
   const recs = await db.records.where('collectionId').equals(COACH_SPORTS_COL_ID).toArray();
-  return recs.filter(r => !r.deletedAt && r.data.actif !== false);
+  const activeRecs = recs.filter(r => !r.deletedAt && r.data.actif !== false);
+
+  const seen = new Set<string>();
+  const uniqueSports: RecordEntry[] = [];
+  const duplicateIdsToRemove: string[] = [];
+
+  for (const r of activeRecs) {
+    const norm = String(r.data.nom || '').trim().toLowerCase();
+    if (!norm) continue;
+    if (seen.has(norm)) {
+      if (r.id) duplicateIdsToRemove.push(r.id);
+    } else {
+      seen.add(norm);
+      uniqueSports.push(r);
+    }
+  }
+
+  if (duplicateIdsToRemove.length > 0) {
+    db.records.bulkDelete(duplicateIdsToRemove).catch(console.error);
+  }
+
+  return uniqueSports;
+}
+
+export async function addCardioSport(nom: string, uniteDistance: string = 'km', icone: string = 'activity'): Promise<RecordEntry> {
+  const trimmed = nom.trim();
+  const existing = await getCardioSports();
+  const found = existing.find(s => String(s.data.nom || '').trim().toLowerCase() === trimmed.toLowerCase());
+  if (found) {
+    return found;
+  }
+  const newRec: RecordEntry = {
+    id: `rec-${generateId()}`,
+    collectionId: COACH_SPORTS_COL_ID,
+    data: {
+      nom: trimmed,
+      icone: icone || 'activity',
+      unite_distance: uniteDistance || 'km',
+      actif: true
+    },
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  await db.records.add(newRec);
+  return newRec;
+}
+
+export async function deleteCardioSport(id: string): Promise<void> {
+  await db.records.update(id, {
+    deletedAt: Date.now(),
+    updatedAt: Date.now()
+  });
 }
 
 /**
@@ -554,24 +620,31 @@ export function estimateCardioDistance(cardio?: CardioWorkout | null): number {
 export async function logCompletedCardio(
   sport: string,
   distanceKm: number,
-  durationMinutes: number,
+  durationValue: number | string,
   comment: string,
   allure: string = '',
   vitesse: number | null = null,
   accompagne: boolean = false,
-  officiel: boolean = false
+  officiel: boolean = false,
+  dateStr?: string
 ) {
-  const todayStr = new Date().toISOString().split('T')[0];
-  const durationSec = durationMinutes * 60;
+  const chosenDate = dateStr || new Date().toISOString().split('T')[0];
+  let tempsFormatted = '';
+  if (typeof durationValue === 'string' && durationValue.includes(':')) {
+    tempsFormatted = durationValue;
+  } else {
+    const durationSec = Number(durationValue) * 60;
+    tempsFormatted = formatHHMMSS(durationSec);
+  }
 
   const record: RecordEntry = {
     id: `rec-${generateId()}`,
     collectionId: SPORT_CARDIO_COL_ID,
     data: {
-      date: todayStr,
+      date: chosenDate,
       sport: sport,
       distance: distanceKm,
-      temps: formatHHMMSS(durationSec),
+      temps: tempsFormatted,
       allure: allure,
       vitesse: vitesse,
       accompagne: accompagne,

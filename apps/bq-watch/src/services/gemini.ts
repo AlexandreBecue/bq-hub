@@ -293,14 +293,23 @@ export async function generateFinalReviewAndRating(
   const systemPrompt = buildSystemPrompt(profile);
   const userName = profile.name || 'l’utilisateur';
 
-  const prompt = `${systemPrompt}\n\n${userPastContext}\n\nVoici l'échange complet avec ${userName} concernant "${movieTitle}" :\n` +
-    history.map(h => `${h.role === 'user' ? userName : 'IA'}: ${h.text}`).join('\n') +
-    `\n\nMISSION :\nSur la base de cet échange et de ses avis historiques, génère au format JSON STRICT :\n` +
+  const prompt = `${systemPrompt}\n\n${userPastContext}\n\nVoici l'échange complet concernant "${movieTitle}" :\n` +
+    history.map(h => `${h.role === 'user' ? (userName || 'Spectateur') : 'IA'}: ${h.text}`).join('\n') +
+    `\n\nMISSION :\nSur la base de cet échange, génère un avis critique et une note au format JSON STRICT :\n` +
     `{\n` +
     `  "mention": "Chef-d’œuvre | Très fortement apprécié | Aimé | Apprécié | Mitigé | Peu apprécié",\n` +
     `  "note": <nombre flottant entre 0.0 et 10.0, par exemple 8.0>,\n` +
-    `  "avis": "<synthèse rédigée dans le style exact de ${userName} : mention globale en première phrase, puis ses points forts marquants, ses réserves et comparaisons>"\n` +
-    `}\n` +
+    `  "avis": "<synthèse rédigée selon les règles impératives ci-dessous>"\n` +
+    `}\n\n` +
+    `RÈGLES IMPÉRATIVES DE RÉDACTION POUR LE CHAMP "avis" :\n` +
+    `1. RÉDIGÉ STRICTEMENT À LA 3E PERSONNE / FORME IMPERSONNELLE : Adopte une posture de chroniqueur/critique (ex: "Le film propose...", "L'œuvre séduit par...", "Une proposition solide qui...", "Le long-métrage offre..."). Ne JAMAIS utiliser la 1ère personne ("je", "mon", "nous") ni le prénom de l'utilisateur.\n` +
+    `2. STRICTEMENT AUCUN SPOIL : Ne dévoile aucun dénouement, rebondissement, révélation d'intrigue ou élément clé du scénario.\n` +
+    `3. STRICTEMENT AUCUNE COMPARAISON AVEC D'AUTRES FILMS : Ne cite, ne compare et ne mentionne JAMAIS d'autres œuvres, sagas ou réalisateurs extérieurs. Le texte doit se concentrer à 100% sur l'œuvre débriefée elle-même.\n` +
+    `4. STRUCTURE HOMOGÈNE (3 à 5 phrases) :\n` +
+    `   - Une 1ère phrase posant le jugement d'ensemble et la tonalité globale de l'œuvre.\n` +
+    `   - Une ou deux phrases sur les points forts majeurs (réalisation, interprétation, écriture, rythme, ambiance).\n` +
+    `   - Une phrase sur les éventuelles réserves ou limites (longueurs, facilités, etc.) ou une conclusion concise.\n` +
+    `5. STYLE : Français soigné, fluide, percutant et élégant, sans fioritures inutiles.\n\n` +
     `Réponds UNIQUEMENT avec le bloc JSON valide, sans texte additionnel.`;
 
   const body = {

@@ -219,7 +219,7 @@ const handleDeleteMetric = async (id: string) => {
         <p class="text-sub">Enregistre régulièrement ton poids, ta taille historique de carnet de santé et tes mensurations de couture.</p>
       </div>
       <div class="view-actions">
-        <button @click="showAddModal = true" class="btn btn-primary">
+        <button @click="openAddModal" class="btn btn-primary">
           <Plus :size="18" /> Saisir des mesures
         </button>
       </div>
@@ -233,7 +233,6 @@ const handleDeleteMetric = async (id: string) => {
     <div v-else-if="metrics.length === 0" class="card glass text-center py-4 text-muted text-sm">
       <Scale class="mx-auto mb-2 text-muted" :size="36" />
       <p>Aucun relevé corporel enregistré pour le moment.</p>
-      <button @click="openAddModal" class="btn btn-primary btn-sm mt-3">Enregistrer mes premières mesures</button>
     </div>
 
     <div v-else class="metrics-dashboard-grid">

@@ -470,9 +470,6 @@ const handleDeleteEntretien = async (id: string) => {
 
           <div v-else-if="activeVehicleEntretiens.length === 0" class="text-center py-4 text-muted">
             <p>Aucune fiche d'entretien enregistrée pour ce véhicule.</p>
-            <button @click="openAddModal" class="btn btn-primary btn-sm mt-3">
-              Créer ma première intervention
-            </button>
           </div>
 
           <div v-else class="timeline-list">

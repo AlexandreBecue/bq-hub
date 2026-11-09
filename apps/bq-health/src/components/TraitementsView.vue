@@ -18,12 +18,12 @@ const isLoading = ref(true);
 
 const showAddModal = ref(false);
 const editingPrescId = ref<string | null>(null);
-const activeCategoryFilter = ref<'all' | 'ordonnance' | 'automedication'>('all');
+const activeCategoryFilter = ref<'all' | 'traitements' | 'ponctuel'>('all');
 
 // Form State
 const formPresc = ref({
   nom_medicament: '',
-  type_medicament: 'Ordonnance' as 'Ordonnance' | 'Automédication',
+  type_medicament: 'Traitement' as 'Traitement' | 'Ponctuel',
   posologie: '',
   posologie_par_jour: 1,
   stock_actuel: '',
@@ -57,37 +57,29 @@ onMounted(() => {
   loadData();
 });
 
-const filteredTreatments = computed(() => {
-  let list = presc.value;
-  if (activeCategoryFilter.value === 'ordonnance') {
-    list = list.filter(p => (p.data.type_medicament || 'Ordonnance') === 'Ordonnance');
-  } else if (activeCategoryFilter.value === 'automedication') {
-    list = list.filter(p => p.data.type_medicament === 'Automédication');
-  }
-  return list;
-});
+const isPonctuelItem = (p: RecordEntry): boolean => {
+  const t = p.data.type_medicament;
+  return t === 'Ponctuel' || t === 'Automédication';
+};
 
-// Segment treatments into active vs finished
-const treatmentsGrouped = computed(() => {
-  const active = filteredTreatments.value.filter(p => p.data.actif === true || p.data.actif === 1);
-  const finished = filteredTreatments.value.filter(p => p.data.actif === false || p.data.actif === 0);
-  return {
-    active,
-    finished
-  };
-});
+const treatmentsList = computed(() => presc.value.filter(p => !isPonctuelItem(p)));
+const ponctuelsList = computed(() => presc.value.filter(p => isPonctuelItem(p)));
 
-const openAddModal = (type: 'Ordonnance' | 'Automédication' = 'Ordonnance') => {
+// Segment treatments into active vs finished (ponctuels are never active)
+const treatmentsActive = computed(() => treatmentsList.value.filter(p => p.data.actif === true || p.data.actif === 1));
+const treatmentsFinished = computed(() => treatmentsList.value.filter(p => p.data.actif === false || p.data.actif === 0));
+
+const openAddModal = (type: 'Traitement' | 'Ponctuel' = 'Traitement') => {
   editingPrescId.value = null;
   formPresc.value = {
     nom_medicament: '',
     type_medicament: type,
-    posologie: type === 'Automédication' ? '1 prise si besoin' : '1 par jour',
+    posologie: type === 'Ponctuel' ? '1 prise si besoin' : '1 par jour',
     posologie_par_jour: 1,
     stock_actuel: '',
     date_debut: new Date().toISOString().split('T')[0],
     date_fin: '',
-    actif: true,
+    actif: type === 'Traitement',
     medecin_prescripteur: '',
     motif_habituel: ''
   };
@@ -96,15 +88,16 @@ const openAddModal = (type: 'Ordonnance' | 'Automédication' = 'Ordonnance') => 
 
 const openEditPresc = (p: RecordEntry) => {
   editingPrescId.value = p.id || null;
+  const isP = isPonctuelItem(p);
   formPresc.value = {
     nom_medicament: p.data.nom_medicament || '',
-    type_medicament: p.data.type_medicament || 'Ordonnance',
+    type_medicament: isP ? 'Ponctuel' : 'Traitement',
     posologie: p.data.posologie || '',
     posologie_par_jour: p.data.posologie_par_jour || 1,
     stock_actuel: p.data.stock_actuel !== undefined && p.data.stock_actuel !== null ? String(p.data.stock_actuel) : '',
     date_debut: p.data.date_debut || new Date().toISOString().split('T')[0],
     date_fin: p.data.date_fin || '',
-    actif: p.data.actif !== false,
+    actif: isP ? false : (p.data.actif !== false),
     medecin_prescripteur: p.data.medecin_prescripteur || '',
     motif_habituel: p.data.motif_habituel || ''
   };
@@ -113,10 +106,11 @@ const openEditPresc = (p: RecordEntry) => {
 
 const applySuggestion = (s: typeof automedicationSuggestions[0]) => {
   formPresc.value.nom_medicament = s.name;
-  formPresc.value.type_medicament = 'Automédication';
+  formPresc.value.type_medicament = 'Ponctuel';
   formPresc.value.posologie = s.posologie;
   formPresc.value.posologie_par_jour = s.maxJour;
   formPresc.value.motif_habituel = s.motif;
+  formPresc.value.actif = false;
 };
 
 // Toggle active state (finish treatment)
@@ -143,16 +137,17 @@ const handleSavePresc = async () => {
   }
 
   try {
+    const isP = formPresc.value.type_medicament === 'Ponctuel';
     const dataPayload = {
       nom_medicament: formPresc.value.nom_medicament.trim(),
       type_medicament: formPresc.value.type_medicament,
       posologie: formPresc.value.posologie.trim(),
       posologie_par_jour: Number(formPresc.value.posologie_par_jour) || 1,
       stock_actuel: formPresc.value.stock_actuel !== '' ? Number(formPresc.value.stock_actuel) : null,
-      date_debut: formPresc.value.date_debut,
-      date_fin: formPresc.value.date_fin || null,
-      actif: formPresc.value.actif,
-      medecin_prescripteur: formPresc.value.medecin_prescripteur.trim(),
+      date_debut: isP ? '' : formPresc.value.date_debut,
+      date_fin: isP ? null : (formPresc.value.date_fin || null),
+      actif: isP ? false : formPresc.value.actif,
+      medecin_prescripteur: isP ? '' : formPresc.value.medecin_prescripteur.trim(),
       motif_habituel: formPresc.value.motif_habituel.trim()
     };
 
@@ -215,14 +210,14 @@ const handleAddToGoogleCalendar = (t: RecordEntry) => {
     <div class="view-header flex-row justify-between align-center flex-wrap gap-3">
       <div>
         <h2>Traitements & médication</h2>
-        <p class="text-sub">Pilulier personnel : gère tes ordonnances médicales et ton armoire d'automédication (doliprane, spasfon...).</p>
+        <p class="text-sub">Pilulier personnel : gère tes traitements en cours et ton armoire à pharmacie de prises ponctuelles (doliprane, spasfon...).</p>
       </div>
       <div class="view-actions flex-row gap-2">
-        <button @click="openAddModal('Automédication')" class="btn btn-secondary">
-          <Pill :size="16" /> + Automédication
+        <button @click="openAddModal('Ponctuel')" class="btn btn-secondary flex-row align-center gap-1">
+          <Plus :size="16" /> Prise ponctuelle
         </button>
-        <button @click="openAddModal('Ordonnance')" class="btn btn-primary">
-          <Plus :size="16" /> + Ordonnance
+        <button @click="openAddModal('Traitement')" class="btn btn-primary flex-row align-center gap-1">
+          <Plus :size="16" /> Nouveau traitement
         </button>
       </div>
     </div>
@@ -238,51 +233,42 @@ const handleAddToGoogleCalendar = (t: RecordEntry) => {
       </button>
       <button 
         class="filter-pill" 
-        :class="{ active: activeCategoryFilter === 'ordonnance' }" 
-        @click="activeCategoryFilter = 'ordonnance'"
+        :class="{ active: activeCategoryFilter === 'traitements' }" 
+        @click="activeCategoryFilter = 'traitements'"
       >
-        Ordonnances ({{ presc.filter(p => (p.data.type_medicament || 'Ordonnance') === 'Ordonnance').length }})
+        Traitements ({{ treatmentsList.length }})
       </button>
       <button 
         class="filter-pill" 
-        :class="{ active: activeCategoryFilter === 'automedication' }" 
-        @click="activeCategoryFilter = 'automedication'"
+        :class="{ active: activeCategoryFilter === 'ponctuel' }" 
+        @click="activeCategoryFilter = 'ponctuel'"
       >
-        Automédication autonome ({{ presc.filter(p => p.data.type_medicament === 'Automédication').length }})
+        Prises ponctuelles ({{ ponctuelsList.length }})
       </button>
     </div>
 
     <!-- Main Content Layout -->
-    <div class="traitements-dashboard-layout">
-      <!-- Active Treatments Card -->
-      <div class="card glass mb-4">
-        <h3 class="font-bold flex-row mb-4"><Heart :size="18" class="text-primary" /> Médications en cours</h3>
+    <div class="traitements-dashboard-layout flex-col gap-4">
+      <!-- 1. Active Treatments Card -->
+      <div v-if="activeCategoryFilter !== 'ponctuel'" class="card glass">
+        <h3 class="font-bold flex-row mb-4"><Heart :size="18" class="text-primary" /> Traitements en cours</h3>
         
         <div v-if="isLoading" class="text-center py-4">
           <div class="spinner"></div>
         </div>
 
-        <div v-else-if="treatmentsGrouped.active.length === 0" class="text-center py-4 text-muted text-sm">
+        <div v-else-if="treatmentsActive.length === 0" class="text-center py-4 text-muted text-sm">
           <ShieldAlert class="mx-auto mb-2 text-muted" :size="36" />
-          <p>Aucune médication active dans cette catégorie.</p>
-          <div class="flex-row justify-center gap-2 mt-3">
-            <button @click="openAddModal('Automédication')" class="btn btn-secondary btn-sm">+ Automédication</button>
-            <button @click="openAddModal('Ordonnance')" class="btn btn-primary btn-sm">+ Ordonnance</button>
-          </div>
+          <p>Aucun traitement régulier actif en ce moment.</p>
         </div>
 
         <div v-else class="treatments-grid">
-          <div v-for="t in treatmentsGrouped.active" :key="t.id" class="card glass hoverable treatment-card active">
+          <div v-for="t in treatmentsActive" :key="t.id" class="card glass hoverable treatment-card active">
             <div class="t-card-header flex-row justify-between align-start">
               <div>
                 <h4 class="t-name font-black text-md">{{ t.data.nom_medicament }}</h4>
                 <div class="flex-row gap-1 mt-1">
-                  <span 
-                    class="badge text-xs" 
-                    :class="t.data.type_medicament === 'Automédication' ? 'badge-secondary' : 'badge-primary'"
-                  >
-                    {{ t.data.type_medicament || 'Ordonnance' }}
-                  </span>
+                  <span class="badge badge-primary text-xs">Traitement</span>
                   <span class="badge badge-success text-xs">En cours</span>
                   <span 
                     v-if="t.data.stock_actuel !== null && t.data.stock_actuel !== undefined" 
@@ -308,9 +294,6 @@ const handleAddToGoogleCalendar = (t: RecordEntry) => {
 
             <div class="t-card-body mt-3 text-sm text-sub">
               <p class="posology-highlight font-bold text-sub">{{ t.data.posologie }}</p>
-              <p v-if="t.data.motif_habituel" class="text-xs text-muted mt-1 italic">
-                Raison / Symptômes : {{ t.data.motif_habituel }}
-              </p>
               <div class="t-dates-row mt-2 text-xs text-muted flex-row justify-between flex-wrap gap-2">
                 <span>Début : <strong>{{ formatToFrenchDate(t.data.date_debut) }}</strong></span>
                 <span v-if="t.data.date_fin">Fin : <strong>{{ formatToFrenchDate(t.data.date_fin) }}</strong></span>
@@ -325,8 +308,8 @@ const handleAddToGoogleCalendar = (t: RecordEntry) => {
                   <input type="checkbox" :checked="t.data.actif !== false" @change="toggleTreatmentActive(t)" />
                   <span class="slider"></span>
                 </label>
-                <span class="active-lbl text-xs font-bold" :class="t.data.actif !== false ? 'text-success' : 'text-danger'">
-                  {{ t.data.actif !== false ? 'Actif' : 'Archivé' }}
+                <span class="active-lbl text-xs font-bold text-success">
+                  En cours
                 </span>
               </div>
             </div>
@@ -334,25 +317,73 @@ const handleAddToGoogleCalendar = (t: RecordEntry) => {
         </div>
       </div>
 
-      <!-- Historical Treatments Card -->
-      <div class="card glass">
-        <h3 class="font-bold flex-row mb-4"><Heart class="text-muted" :size="18" /> Historique des médications terminées</h3>
+      <!-- 2. Ponctual Medications (Pharmacie / Armoire) - Never marked active -->
+      <div v-if="activeCategoryFilter !== 'traitements'" class="card glass">
+        <h3 class="font-bold flex-row mb-4"><Pill :size="18" class="text-secondary" /> Prises ponctuelles (Pharmacie personnelle)</h3>
         
         <div v-if="isLoading" class="text-center py-4">
           <div class="spinner"></div>
         </div>
 
-        <div v-else-if="treatmentsGrouped.finished.length === 0" class="text-center py-4 text-muted text-sm">
-          <p>Aucune médication archivée.</p>
+        <div v-else-if="ponctuelsList.length === 0" class="text-center py-4 text-muted text-sm">
+          <p>Aucune médication ponctuelle enregistrée (ex: Doliprane, Spasfon...).</p>
         </div>
 
         <div v-else class="treatments-grid">
-          <div v-for="t in treatmentsGrouped.finished" :key="t.id" class="card glass hoverable treatment-card finished">
+          <div v-for="t in ponctuelsList" :key="t.id" class="card glass hoverable treatment-card ponctuel">
+            <div class="t-card-header flex-row justify-between align-start">
+              <div>
+                <h4 class="t-name font-black text-md">{{ t.data.nom_medicament }}</h4>
+                <div class="flex-row gap-1 mt-1">
+                  <span class="badge badge-secondary text-xs">Ponctuel</span>
+                  <span 
+                    v-if="t.data.stock_actuel !== null && t.data.stock_actuel !== undefined" 
+                    class="badge text-xs flex-row gap-1"
+                    :class="t.data.stock_actuel <= 3 ? 'badge-danger font-bold' : 'badge-neutral'"
+                  >
+                    <Package :size="11" /> Stock: {{ t.data.stock_actuel }}
+                  </span>
+                </div>
+              </div>
+              <div class="flex-row gap-1">
+                <button @click="openEditPresc(t)" class="action-btn edit" title="Modifier">
+                  <Edit2 :size="14" />
+                </button>
+                <button @click="handleDeletePresc(t.id!)" class="action-btn delete" title="Supprimer">
+                  <Trash2 :size="14" />
+                </button>
+              </div>
+            </div>
+
+            <div class="t-card-body mt-3 text-sm text-sub">
+              <p class="posology-highlight font-bold text-sub">{{ t.data.posologie }}</p>
+              <p v-if="t.data.motif_habituel" class="text-xs text-muted mt-2 italic">
+                Indications : {{ t.data.motif_habituel }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Historical Treatments Card -->
+      <div v-if="activeCategoryFilter !== 'ponctuel'" class="card glass">
+        <h3 class="font-bold flex-row mb-4"><Heart class="text-muted" :size="18" /> Historique des traitements terminés</h3>
+        
+        <div v-if="isLoading" class="text-center py-4">
+          <div class="spinner"></div>
+        </div>
+
+        <div v-else-if="treatmentsFinished.length === 0" class="text-center py-4 text-muted text-sm">
+          <p>Aucun traitement archivé.</p>
+        </div>
+
+        <div v-else class="treatments-grid">
+          <div v-for="t in treatmentsFinished" :key="t.id" class="card glass hoverable treatment-card finished">
             <div class="t-card-header flex-row justify-between align-start">
               <div>
                 <h4 class="t-name font-bold text-sm text-muted">{{ t.data.nom_medicament }}</h4>
                 <div class="flex-row gap-1 mt-1">
-                  <span class="badge badge-neutral text-xs">{{ t.data.type_medicament || 'Ordonnance' }}</span>
+                  <span class="badge badge-neutral text-xs">Traitement</span>
                   <span class="badge badge-neutral text-xs">Terminé</span>
                 </div>
               </div>
@@ -374,7 +405,7 @@ const handleAddToGoogleCalendar = (t: RecordEntry) => {
             <div class="t-card-footer mt-3 border-top pt-2 flex-row justify-between">
               <span class="text-xs text-sub">Réactiver :</span>
               <button @click="toggleTreatmentActive(t)" class="btn btn-secondary btn-sm text-xs">
-                Remettre au pilulier
+                Remettre aux traitements en cours
               </button>
             </div>
           </div>
@@ -388,7 +419,7 @@ const handleAddToGoogleCalendar = (t: RecordEntry) => {
         <div class="modal-header">
           <h3 class="flex-row gap-2">
             <Pill class="text-primary" />
-            {{ editingPrescId ? 'Modifier la médication' : 'Ajouter une médication au pilulier' }}
+            {{ editingPrescId ? 'Modifier la médication' : (formPresc.type_medicament === 'Ponctuel' ? 'Ajouter une prise ponctuelle' : 'Ajouter un traitement régulier') }}
           </h3>
           <button @click="showAddModal = false" class="modal-close"><X :size="20" /></button>
         </div>
@@ -398,18 +429,18 @@ const handleAddToGoogleCalendar = (t: RecordEntry) => {
             <label class="mb-1 block">Catégorie de médication *</label>
             <div class="flex-row gap-4">
               <label class="flex-row gap-2 align-center cursor-pointer">
-                <input type="radio" value="Ordonnance" v-model="formPresc.type_medicament" />
-                <span>Ordonnance médicale</span>
+                <input type="radio" value="Traitement" v-model="formPresc.type_medicament" />
+                <span>Traitement régulier</span>
               </label>
               <label class="flex-row gap-2 align-center cursor-pointer">
-                <input type="radio" value="Automédication" v-model="formPresc.type_medicament" />
-                <span>Automédication autonome</span>
+                <input type="radio" value="Ponctuel" v-model="formPresc.type_medicament" />
+                <span>Prise ponctuelle</span>
               </label>
             </div>
           </div>
 
-          <!-- Quick suggestions for automedication -->
-          <div v-if="formPresc.type_medicament === 'Automédication'" class="mb-3 card glass p-2">
+          <!-- Quick suggestions for ponctuel -->
+          <div v-if="formPresc.type_medicament === 'Ponctuel'" class="mb-3 card glass p-2">
             <span class="text-xs font-bold text-muted uppercase block mb-1">Suggestions rapides :</span>
             <div class="flex-row flex-wrap gap-1">
               <button 
@@ -439,7 +470,7 @@ const handleAddToGoogleCalendar = (t: RecordEntry) => {
             <div class="form-group">
               <label>Nombre de prises max par jour</label>
               <input v-model.number="formPresc.posologie_par_jour" type="number" min="1" max="10" class="input" />
-              <span class="text-xs text-muted">Permet d'afficher un compteur journalier dans le cockpit si > 1</span>
+              <span class="text-xs text-muted">Permet d'afficher un compteur journalier si > 1</span>
             </div>
             <div class="form-group">
               <label>Stock restant (comprimés / gélules)</label>
@@ -448,7 +479,7 @@ const handleAddToGoogleCalendar = (t: RecordEntry) => {
             </div>
           </div>
 
-          <div class="form-grid" v-if="formPresc.type_medicament === 'Ordonnance'">
+          <div class="form-grid" v-if="formPresc.type_medicament === 'Traitement'">
             <div class="form-group">
               <label>Date début *</label>
               <input v-model="formPresc.date_debut" type="date" class="input" />
@@ -459,12 +490,12 @@ const handleAddToGoogleCalendar = (t: RecordEntry) => {
             </div>
           </div>
 
-          <div class="form-group mb-3" v-if="formPresc.type_medicament === 'Ordonnance'">
+          <div class="form-group mb-3" v-if="formPresc.type_medicament === 'Traitement'">
             <label>Médecin prescripteur</label>
             <input v-model="formPresc.medecin_prescripteur" type="text" placeholder="Ex: Dr Martin" class="input" />
           </div>
 
-          <div class="form-group mb-3" v-if="formPresc.type_medicament === 'Automédication'">
+          <div class="form-group mb-3" v-if="formPresc.type_medicament === 'Ponctuel'">
             <label>Raison / Symptômes habituels</label>
             <input v-model="formPresc.motif_habituel" type="text" placeholder="Ex: Maux de tête, maux de gorge, crampes..." class="input" />
           </div>
@@ -473,7 +504,7 @@ const handleAddToGoogleCalendar = (t: RecordEntry) => {
         <div class="modal-footer flex-row justify-end gap-2 border-top pt-3 mt-4">
           <button @click="showAddModal = false" class="btn btn-neutral">Annuler</button>
           <button @click="handleSavePresc" class="btn btn-primary">
-            {{ editingPrescId ? 'Enregistrer les modifications' : 'Ajouter au pilulier' }}
+            {{ editingPrescId ? 'Enregistrer les modifications' : 'Enregistrer' }}
           </button>
         </div>
       </div>

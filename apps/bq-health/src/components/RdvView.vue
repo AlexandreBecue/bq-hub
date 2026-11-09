@@ -392,7 +392,6 @@ const handleAddExamenToCalendar = (ex: RecordEntry) => {
 
           <div v-else-if="sortedAppointments.upcoming.length === 0" class="text-center py-4 text-muted text-sm">
             <p>Aucun rendez-vous futur planifié.</p>
-            <button @click="openAddRdvModal" class="btn btn-primary btn-sm mt-3">+ Prendre un RDV</button>
           </div>
 
           <div v-else class="rdv-list-stack">
@@ -493,7 +492,6 @@ const handleAddExamenToCalendar = (ex: RecordEntry) => {
       <div class="card glass mb-4">
         <div class="flex-row justify-between align-center mb-4 flex-wrap gap-2">
           <h3 class="font-bold flex-row"><Activity :size="18" class="text-primary" /> Dossier de suivi médical & examens</h3>
-          <button @click="openAddExamenModal" class="btn btn-primary btn-sm">+ Ajouter un examen</button>
         </div>
 
         <div v-if="isLoading" class="text-center py-4">
@@ -502,7 +500,6 @@ const handleAddExamenToCalendar = (ex: RecordEntry) => {
 
         <div v-else-if="sortedExamens.length === 0" class="text-center py-4 text-muted text-sm">
           <p>Aucun examen, bilan sanguin, scanner ou opération enregistré pour le moment.</p>
-          <button @click="openAddExamenModal" class="btn btn-primary btn-sm mt-3">Enregistrer mon premier examen</button>
         </div>
 
         <div v-else class="examens-grid">

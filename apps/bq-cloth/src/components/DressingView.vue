@@ -264,11 +264,6 @@ const toggleSeasonInForm = (season: string) => {
       <ShieldAlert class="empty-icon text-muted" :size="48" />
       <h3>Votre dressing est vide</h3>
       <p class="text-sub mt-2">Commencez par ajouter votre premier vêtement, ou générez un jeu de données de démo dans les paramètres !</p>
-      <div class="flex-row justify-center gap-4 mt-4 flex-wrap">
-        <button @click="openAddModal" class="btn btn-primary">
-          <Plus :size="18" /> Ajouter un vêtement
-        </button>
-      </div>
     </div>
 
     <div v-else-if="filteredClothes.length === 0" class="empty-state card glass text-center">
@@ -356,7 +351,7 @@ const toggleSeasonInForm = (season: string) => {
     <div v-if="showAddModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>➕ Ajouter un vêtement</h3>
+          <h3 class="flex-row align-center gap-2"><Plus :size="18" class="text-primary" /> Ajouter un vêtement</h3>
           <button @click="showAddModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
@@ -430,7 +425,7 @@ const toggleSeasonInForm = (season: string) => {
     <div v-if="showEditModal" class="modal-overlay">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>✏️ Modifier le vêtement</h3>
+          <h3 class="flex-row align-center gap-2"><Edit2 :size="18" class="text-primary" /> Modifier le vêtement</h3>
           <button @click="showEditModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">

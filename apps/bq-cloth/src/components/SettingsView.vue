@@ -12,7 +12,7 @@ import {
 import { syncEngine } from '../db/google-drive';
 import BaseSettings from '@bq/theme/BaseSettings.vue';
 import { 
-  Plus, Sparkles, X, Settings, Thermometer, Tag, Trash2, Check 
+  Plus, Sparkles, X, Settings, Thermometer, Tag, Trash2, Check, Edit2 
 } from '@lucide/vue';
 import { useToast } from '@bq/theme/useToast';
 
@@ -30,6 +30,7 @@ const isDbEmpty = ref(true);
 
 // Tenue Type Modal Form State
 const showAddTenueTypeModal = ref(false);
+const editingTenueTypeId = ref<string | null>(null);
 const formTenueType = ref({
   nom: '',
   contexte: 'Bureau',
@@ -95,31 +96,64 @@ const savePreferences = () => {
   emit('data-updated');
 };
 
-// Add New Typical Outfit (Tenue Type)
-const handleAddTenueType = async () => {
+// Open Add / Edit Tenue Type
+const openAddTenueType = () => {
+  editingTenueTypeId.value = null;
+  formTenueType.value = { nom: '', contexte: contexts.value[0] || 'Bureau', temperature_ideale: 15, vetements_associes: [] };
+  showAddTenueTypeModal.value = true;
+};
+
+const openEditTenueType = (tt: RecordEntry) => {
+  editingTenueTypeId.value = tt.id || null;
+  formTenueType.value = {
+    nom: tt.data.nom || '',
+    contexte: tt.data.contexte || (contexts.value[0] || 'Bureau'),
+    temperature_ideale: tt.data.temperature_ideale !== undefined ? Number(tt.data.temperature_ideale) : 15,
+    vetements_associes: [...(tt.data.vetements_associes || [])]
+  };
+  showAddTenueTypeModal.value = true;
+};
+
+// Add or Edit Typical Outfit (Tenue Type)
+const handleSaveTenueType = async () => {
   if (!formTenueType.value.nom.trim() || formTenueType.value.vetements_associes.length === 0) return;
 
   try {
-    const newRecord: RecordEntry = {
-      id: `rec-${generateId()}`,
-      collectionId: TENUES_TYPES_COL_ID,
-      data: {
-        nom: formTenueType.value.nom.trim(),
-        contexte: formTenueType.value.contexte,
-        temperature_ideale: Number(formTenueType.value.temperature_ideale),
-        vetements_associes: [...formTenueType.value.vetements_associes]
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+    const rawData = {
+      nom: formTenueType.value.nom.trim(),
+      contexte: formTenueType.value.contexte,
+      temperature_ideale: Number(formTenueType.value.temperature_ideale),
+      vetements_associes: [...formTenueType.value.vetements_associes]
     };
 
-    await db.records.add(newRecord);
+    if (editingTenueTypeId.value) {
+      const existing = await db.records.get(editingTenueTypeId.value);
+      if (existing) {
+        existing.data = { ...existing.data, ...rawData };
+        existing.updatedAt = Date.now();
+        await db.records.put(JSON.parse(JSON.stringify(existing)));
+        toast.success('Tenue type modifiée !');
+      }
+    } else {
+      const newRecord: RecordEntry = {
+        id: `rec-${generateId()}`,
+        collectionId: TENUES_TYPES_COL_ID,
+        data: rawData,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await db.records.add(JSON.parse(JSON.stringify(newRecord)));
+      toast.success('Tenue type ajoutée !');
+    }
+
     showAddTenueTypeModal.value = false;
+    editingTenueTypeId.value = null;
     formTenueType.value = { nom: '', contexte: contexts.value[0] || 'Bureau', temperature_ideale: 15, vetements_associes: [] };
     await loadClothesAndTenuesTypes();
-    toast.success('Tenue type ajoutée !');
+    emit('data-updated');
   } catch (err) {
-    console.error(err);
+    console.error('Erreur sauvegarde tenue type:', err);
+    toast.error('Erreur lors de la sauvegarde de la tenue type.');
   }
 };
 
@@ -131,6 +165,7 @@ const handleDeleteTenueType = async (id: string) => {
       updatedAt: Date.now()
     });
     await loadClothesAndTenuesTypes();
+    emit('data-updated');
   } catch (err) {
     console.error(err);
   }
@@ -270,7 +305,7 @@ const citiesList = ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Bordeaux', 'Nante
           <div class="card glass w-100">
             <div class="tenues-types-header">
               <h3 class="font-bold m-0"><Sparkles :size="18" /> Associations (tenues types)</h3>
-              <button @click="showAddTenueTypeModal = true" class="btn btn-primary btn-sm flex-row">
+              <button @click="openAddTenueType" class="btn btn-primary btn-sm flex-row">
                 <Plus :size="14" /> Nouvelle tenue type
               </button>
             </div>
@@ -289,7 +324,10 @@ const citiesList = ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Bordeaux', 'Nante
                       <span class="badge badge-warning text-xs align-center gap-1"><Thermometer :size="11" /> {{ tt.data.temperature_ideale }}°C</span>
                     </div>
                   </div>
-                  <button @click="handleDeleteTenueType(tt.id!)" class="action-btn delete" title="Supprimer"><Trash2 :size="14" /></button>
+                  <div class="flex-row gap-1">
+                    <button @click="openEditTenueType(tt)" class="action-btn edit" title="Modifier"><Edit2 :size="14" /></button>
+                    <button @click="handleDeleteTenueType(tt.id!)" class="action-btn delete" title="Supprimer"><Trash2 :size="14" /></button>
+                  </div>
                 </div>
                 <div class="tt-garments mt-2 text-muted text-xs">
                   <strong>Composée de :</strong> 
@@ -305,11 +343,15 @@ const citiesList = ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Bordeaux', 'Nante
 
   <!-- Modals Layer -->
   <Teleport to="body">
-    <!-- Modal : Add Tenue Type -->
+    <!-- Modal : Add/Edit Tenue Type -->
     <div v-if="showAddTenueTypeModal" class="modal-overlay" @click.self="showAddTenueTypeModal = false">
       <div class="modal-container card glass fade-in">
         <div class="modal-header flex-row align-center justify-between mb-4">
-          <h3>➕ Nouvelle Tenue Type</h3>
+          <h3 class="flex-row align-center gap-2">
+            <Edit2 v-if="editingTenueTypeId" :size="18" class="text-primary" />
+            <Plus v-else :size="18" class="text-primary" />
+            {{ editingTenueTypeId ? 'Modifier la tenue type' : 'Nouvelle tenue type' }}
+          </h3>
           <button @click="showAddTenueTypeModal = false" class="modal-close"><X :size="20" /></button>
         </div>
         <div class="modal-body">
@@ -355,7 +397,7 @@ const citiesList = ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Bordeaux', 'Nante
             {{ formTenueType.vetements_associes.length }} vêtements associés
           </span>
           <button @click="showAddTenueTypeModal = false" class="btn btn-secondary btn-sm height-34">Annuler</button>
-          <button @click="handleAddTenueType" class="btn btn-secondary btn-sm height-34" :disabled="!formTenueType.nom.trim() || formTenueType.vetements_associes.length === 0">
+          <button @click="handleSaveTenueType" class="btn btn-secondary btn-sm height-34" :disabled="!formTenueType.nom.trim() || formTenueType.vetements_associes.length === 0">
             Enregistrer
           </button>
         </div>

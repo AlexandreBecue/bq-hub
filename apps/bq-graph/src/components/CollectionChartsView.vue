@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
 import { db, type CollectionSchema, type RecordEntry, type SavedView } from '../db';
-import { evaluateFilters, aggregateData, formatToFrenchDate, backfillCalculatedFields } from '../db/queries';
+import { evaluateFilters, aggregateData, formatToFrenchDate, backfillCalculatedFields, syncCollectionFieldsFromRecords } from '../db/queries';
 import { 
   Bar as BarChart, 
   Line as LineChart, 
@@ -240,6 +240,11 @@ const loadChartsData = async () => {
   // Fetch and prepare data for each widget
   const tempWidgetData: Record<string, { labels: string[]; values: number[]; values2?: number[]; tooltips?: string[][] }> = {};
   
+  if (activeCollection.value) {
+    const allColRecords = await db.records.where('collectionId').equals(activeCollection.value.id).toArray();
+    await syncCollectionFieldsFromRecords(activeCollection.value, allColRecords.filter(r => !r.deletedAt), db);
+  }
+
   for (const widget of widgets.value) {
     // 1. Get raw records for this collection
     const rawRecords = await db.records.where('collectionId').equals(widget.collectionId).toArray();

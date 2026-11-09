@@ -73,9 +73,14 @@ onMounted(() => {
 
 const todayStr = computed(() => new Date().toISOString().split('T')[0]);
 
-// Active medications (treatments in progress)
+// Active medications (continuous or cure treatments in progress)
 const activeTreatments = computed(() => {
-  return presc.value.filter(p => p.data.actif === true || p.data.actif === 1);
+  return presc.value.filter(p => (p.data.actif === true || p.data.actif === 1) && p.data.type_medicament !== 'Ponctuel' && p.data.type_medicament !== 'Automédication');
+});
+
+// Ponctual medications (pharmacy / as-needed medicines)
+const ponctualMedications = computed(() => {
+  return presc.value.filter(p => p.data.type_medicament === 'Ponctuel' || p.data.type_medicament === 'Automédication');
 });
 
 // Medication statistics (today count, last taken, stock)
@@ -88,8 +93,9 @@ const medicationTelemetry = computed(() => {
   }> = {};
 
   const today = todayStr.value;
+  const allMeds = [...activeTreatments.value, ...ponctualMedications.value];
 
-  for (const t of activeTreatments.value) {
+  for (const t of allMeds) {
     const medId = t.id!;
     const medPrises = prises.value.filter(p => p.data.medicament_id === medId);
     
@@ -444,7 +450,7 @@ const handleRunGemini = async () => {
                   <button 
                     v-if="medicationTelemetry[t.id!]?.todayCount >= 1" 
                     @click="openTakeMedicationModal(t)"
-                    class="btn btn-sm badge-success flex-row gap-1"
+                    class="btn btn-success btn-sm flex-row gap-1"
                     title="Déjà pris aujourd'hui (clique pour ajouter une autre prise)"
                   >
                     <CheckCircle2 :size="14" /> Pris aujourd'hui
@@ -458,6 +464,46 @@ const handleRunGemini = async () => {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Prises ponctuelles / Pharmacie -->
+        <div v-if="ponctualMedications.length > 0" class="card glass mb-4">
+          <div class="flex-row justify-between align-center mb-3">
+            <h3 class="font-bold flex-row"><Pill :size="18" class="text-secondary" /> Prises ponctuelles (Pharmacie)</h3>
+            <span class="text-xs text-muted">{{ ponctualMedications.length }} produit(s)</span>
+          </div>
+
+          <div class="treatments-pillbox-list flex-col gap-2">
+            <div 
+              v-for="t in ponctualMedications" 
+              :key="t.id" 
+              class="treatment-pillbox-card card glass p-3 flex-row justify-between align-center flex-wrap gap-2"
+            >
+              <div class="pill-info flex-1">
+                <div class="flex-row align-center gap-2">
+                  <h4 class="pill-name font-bold text-sm">{{ t.data.nom_medicament }}</h4>
+                  <span 
+                    v-if="medicationTelemetry[t.id!]?.stock !== null" 
+                    class="badge text-xs flex-row gap-1"
+                    :class="(medicationTelemetry[t.id!]?.stock || 0) <= 3 ? 'badge-danger font-bold' : 'badge-neutral'"
+                  >
+                    <Package :size="11" /> Stock: {{ medicationTelemetry[t.id!]?.stock }}
+                  </span>
+                </div>
+                <p class="pill-poso text-xs text-sub mt-1">{{ t.data.posologie }}</p>
+                <p v-if="medicationTelemetry[t.id!]?.lastPrise" class="pill-last-intake text-xs text-muted mt-1 flex-row align-center gap-1">
+                  <Clock :size="11" /> Dernière prise : <strong class="text-sub">{{ formatLastIntake(medicationTelemetry[t.id!]?.lastPrise) }}</strong>
+                </p>
+              </div>
+              <button 
+                @click="openTakeMedicationModal(t)" 
+                class="btn btn-secondary btn-sm flex-row align-center gap-1"
+                title="Enregistrer une prise ponctuelle"
+              >
+                <Plus :size="14" /> Enregistrer une prise
+              </button>
             </div>
           </div>
         </div>

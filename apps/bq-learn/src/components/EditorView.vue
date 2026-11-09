@@ -271,7 +271,6 @@ const handleDeleteCard = async (id: string) => {
 
         <div v-else-if="activeDeckCards.length === 0" class="text-center py-4 text-muted text-sm">
           <p>Aucune carte mémorisable dans ce paquet.</p>
-          <button @click="openAddCardModal" class="btn btn-primary btn-sm mt-3">Saisir ma première flashcard</button>
         </div>
 
         <div v-else class="cards-timeline-list">

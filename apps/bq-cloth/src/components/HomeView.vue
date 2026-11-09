@@ -363,20 +363,22 @@ const toggleEditGarment = (id: string) => {
 const handleSaveTenueEdit = async () => {
   if (!editingTenue.value?.id) return;
   try {
-    await db.records.update(editingTenue.value.id, {
-      data: {
-        ...editingTenue.value.data,
-        date: editTenueDate.value,
-        contexte: editTenueContext.value,
-        vetements_portes: [...editTenueGarments.value]
-      },
+    const rawData = JSON.parse(JSON.stringify(editingTenue.value.data || {}));
+    rawData.date = editTenueDate.value;
+    rawData.contexte = editTenueContext.value;
+    rawData.vetements_portes = [...editTenueGarments.value];
+
+    const updatedRecord: RecordEntry = {
+      ...JSON.parse(JSON.stringify(editingTenue.value)),
+      data: rawData,
       updatedAt: Date.now()
-    });
+    };
+
+    await db.records.put(updatedRecord);
     isEditTenueModalOpen.value = false;
     editingTenue.value = null;
     toast.success('Tenue modifiée avec succès !');
     emit('data-updated');
-    await loadData();
   } catch (err) {
     console.error('Erreur modification tenue:', err);
     toast.error('Erreur lors de la modification.');

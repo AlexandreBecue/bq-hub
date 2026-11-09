@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed, shallowRef } from 'vue';
 import { db, generateId, dbStatus, type CollectionSchema, type RecordEntry, type SavedFilter, type SavedView, type RecordTemplate, type FieldConfig } from '../db';
-import { evaluateFilters, formatToFrenchDate, evaluateFormula, backfillCalculatedFields } from '../db/queries';
+import { evaluateFilters, formatToFrenchDate, evaluateFormula, backfillCalculatedFields, syncCollectionFieldsFromRecords } from '../db/queries';
 import { useToast } from '@bq/theme/useToast';
 import { 
   Plus, Trash2, Edit2, Search, SlidersHorizontal, Filter, Save, 
@@ -218,8 +218,18 @@ const loadRecords = async () => {
     const rawRecords = await db.records.where('collectionId').equals(selectedCollectionId.value).toArray();
     records.value = rawRecords.filter(r => !r.deletedAt);
     
-    // Auto-evaluate and backfill any missing or outdated calculated fields
+    // Auto-discover and register missing fields from records data
     if (activeCollection.value) {
+      const fieldsAdded = await syncCollectionFieldsFromRecords(activeCollection.value, records.value, db);
+      if (fieldsAdded) {
+        const updatedCol = await db.collections.get(activeCollection.value.id);
+        if (updatedCol) {
+          const idx = collections.value.findIndex(c => c.id === updatedCol.id);
+          if (idx !== -1) {
+            collections.value[idx] = updatedCol;
+          }
+        }
+      }
       await backfillCalculatedFields(records.value, activeCollection.value, db);
     }
     

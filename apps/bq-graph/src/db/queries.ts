@@ -469,3 +469,76 @@ export async function backfillCalculatedFields(
     }
   }
 }
+
+/**
+ * Automatically discovers missing fields present in records data and registers them
+ * into the collection schema. This ensures new columns added by other hub apps
+ * (e.g. allure, vitesse, accompagne, officiel in bq-coach) immediately appear in bq-graph.
+ */
+export async function syncCollectionFieldsFromRecords(
+  collection: CollectionSchema,
+  records: RecordEntry[],
+  db: any
+): Promise<boolean> {
+  if (!collection || !records || records.length === 0) return false;
+
+  const existingKeys = new Set(collection.fields.map(f => f.key));
+  const newFields: any[] = [];
+
+  const KNOWN_LABELS: Record<string, { name: string; unit?: string }> = {
+    allure: { name: 'Allure' },
+    vitesse: { name: 'Vitesse', unit: 'km/h' },
+    accompagne: { name: 'Accompagné' },
+    officiel: { name: 'Officiel' },
+    temps: { name: 'Temps' },
+    distance: { name: 'Distance', unit: 'km' },
+    commentaire: { name: 'Commentaire' }
+  };
+
+  for (const rec of records) {
+    if (!rec.data) continue;
+    for (const [key, val] of Object.entries(rec.data)) {
+      if (existingKeys.has(key) || key === 'id') continue;
+
+      let detectedType: any = 'text';
+      if (typeof val === 'number') {
+        detectedType = 'number';
+      } else if (typeof val === 'boolean') {
+        detectedType = 'boolean';
+      } else if (Array.isArray(val)) {
+        detectedType = 'tags';
+      } else if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) {
+        detectedType = 'date';
+      }
+
+      const known = KNOWN_LABELS[key];
+      const name = known?.name || (key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '));
+      const fieldId = `f-${key.replace(/_/g, '-')}-${Math.random().toString(36).substring(2, 6)}`;
+
+      const newFieldConfig: any = {
+        id: fieldId,
+        name,
+        key,
+        type: detectedType,
+        required: false
+      };
+      if (known?.unit) {
+        newFieldConfig.unit = known.unit;
+      }
+
+      newFields.push(newFieldConfig);
+      existingKeys.add(key);
+    }
+  }
+
+  if (newFields.length > 0) {
+    collection.fields = [...collection.fields, ...newFields];
+    collection.updatedAt = Date.now();
+    await db.collections.put(collection);
+    console.log(`Auto-discovered and registered ${newFields.length} new fields for collection "${collection.name}":`, newFields.map(f => f.key));
+    return true;
+  }
+
+  return false;
+}
+

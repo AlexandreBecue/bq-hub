@@ -86,56 +86,64 @@ const handleClearDatabase = async () => {
 </script>
 
 <template>
-  <BaseSettings
-    :db="db"
-    :syncEngine="syncEngine"
-    :clientId="clientId"
-    :isDbEmpty="isDbEmpty"
-    exportFileNamePrefix="bq-graph"
-    @data-updated="handleDataUpdated"
-    @clear-database="handleClearDatabase"
-    @generate-demo="handleSeed"
-  >
-    <!-- Custom content slot: Dashboard Personalization -->
-    <div class="custom-settings-content">
-      <!-- Dashboard Personalization Card (Full Width) -->
-      <div class="card glass hub-custom-card">
-        <div class="card-header hub-custom-header">
-          <div class="icon-wrapper info hub-icon-wrapper">
-            <LayoutGrid :size="20" />
-          </div>
-          <h2>Personnalisation du hub</h2>
-        </div>
-        <p class="card-desc">
-          Épingle tes applications personnelles préférées sur la page d'accueil (Tableau de bord). Les applications décochées seront masquées.
-        </p>
-
-        <div class="pinned-apps-form">
-          <div v-for="app in HUB_APPS_LIST" :key="app.id" class="card glass app-pin-item">
-            <div class="app-pin-left">
-              <div 
-                class="app-badge-box"
-                :style="{ backgroundColor: COLOR_MAP[app.colorClass].bg, color: COLOR_MAP[app.colorClass].text }"
-              >
-                <component :is="app.icon" :size="16" />
-              </div>
-              <div class="app-label-col">
-                <span class="font-bold text-sm app-title-text">{{ app.title }}</span>
-                <span class="text-xs text-sub app-sub-text">{{ app.subtitle }}</span>
-              </div>
+  <div class="settings-page-container">
+    <BaseSettings
+      :db="db"
+      :syncEngine="syncEngine"
+      :clientId="clientId"
+      :isDbEmpty="isDbEmpty"
+      exportFileNamePrefix="bq-graph"
+      @data-updated="handleDataUpdated"
+      @clear-database="handleClearDatabase"
+      @generate-demo="handleSeed"
+    >
+      <!-- Custom content slot: Dashboard Personalization -->
+      <div class="custom-settings-content">
+        <!-- Dashboard Personalization Card (Full Width) -->
+        <div class="card glass hub-custom-card">
+          <div class="card-header hub-custom-header">
+            <div class="icon-wrapper info hub-icon-wrapper">
+              <LayoutGrid :size="20" />
             </div>
-            <label class="switch app-switch-label">
-              <input type="checkbox" :value="app.id" v-model="pinnedAppIds" @change="savePinnedApps" class="checkbox-input" />
-              <span>{{ pinnedAppIds.includes(app.id) ? 'Épinglé' : 'Masqué' }}</span>
-            </label>
+            <h2>Personnalisation du hub</h2>
+          </div>
+          <p class="card-desc">
+            Épingle tes applications personnelles préférées sur la page d'accueil (Tableau de bord). Les applications décochées seront masquées.
+          </p>
+
+          <div class="pinned-apps-form">
+            <div v-for="app in HUB_APPS_LIST" :key="app.id" class="card glass app-pin-item">
+              <div class="app-pin-left">
+                <div 
+                  class="app-badge-box"
+                  :style="{ backgroundColor: COLOR_MAP[app.colorClass].bg, color: COLOR_MAP[app.colorClass].text }"
+                >
+                  <component :is="app.icon" :size="16" />
+                </div>
+                <div class="app-label-col">
+                  <span class="font-bold text-sm app-title-text">{{ app.title }}</span>
+                  <span class="text-xs text-sub app-sub-text">{{ app.subtitle }}</span>
+                </div>
+              </div>
+              <label class="switch app-switch-label">
+                <input type="checkbox" :value="app.id" v-model="pinnedAppIds" @change="savePinnedApps" class="checkbox-input" />
+                <span>{{ pinnedAppIds.includes(app.id) ? 'Épinglé' : 'Masqué' }}</span>
+              </label>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </BaseSettings>
+    </BaseSettings>
+  </div>
 </template>
 
 <style scoped lang="scss">
+.settings-page-container {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
 .custom-settings-content {
   margin-top: 2rem;
 }

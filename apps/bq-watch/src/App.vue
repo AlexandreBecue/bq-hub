@@ -62,19 +62,19 @@ onMounted(async () => {
         @start-debrief="handleStartDebriefFromOtherView"
       />
       <DebriefView 
-        v-else-if="activeTab === 'debrief'" 
-        :key="'deb-' + viewKey" 
+        v-show="activeTab === 'debrief'" 
         :initialMovie="debriefInitialMovie"
         @data-updated="triggerDataUpdate" 
+        @open-library="handleNavigate('library')"
       />
       <WatchlistView 
-        v-else-if="activeTab === 'watchlist'" 
+        v-if="activeTab === 'watchlist'" 
         :key="'watch-' + viewKey" 
         @data-updated="triggerDataUpdate" 
         @start-debrief="handleStartDebriefFromOtherView"
       />
       <SettingsView 
-        v-else-if="activeTab === 'settings'" 
+        v-if="activeTab === 'settings'" 
         :key="'set-' + viewKey" 
         @data-updated="triggerDataUpdate" 
       />

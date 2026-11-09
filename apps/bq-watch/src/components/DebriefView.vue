@@ -72,11 +72,73 @@ const platformsList = [
   'Autre'
 ];
 
+const STORAGE_DRAFT_KEY = 'bq-watch-debrief-draft-v1';
+
+function saveDraft() {
+  if (!movieTitle.value.trim() && chatMessages.value.length <= 1 && !generatedAvis.value) {
+    sessionStorage.removeItem(STORAGE_DRAFT_KEY);
+    return;
+  }
+  const draft = {
+    movieTitle: movieTitle.value,
+    selectedType: selectedType.value,
+    selectedOrigin: selectedOrigin.value,
+    watchDate: watchDate.value,
+    posterUrl: posterUrl.value,
+    tmdbId: tmdbId.value,
+    movieGenres: movieGenres.value,
+    debriefMode: debriefMode.value,
+    chatMessages: chatMessages.value,
+    generatedAvis: generatedAvis.value,
+    rating: rating.value,
+    isRewatchExisting: isRewatchExisting.value,
+    editingMovieId: editingMovieId.value,
+    watchlistSourceId: watchlistSourceId.value,
+    selectedTags: selectedTags.value,
+    selectedMention: selectedMention.value
+  };
+  try {
+    sessionStorage.setItem(STORAGE_DRAFT_KEY, JSON.stringify(draft));
+  } catch {}
+}
+
+watch([movieTitle, selectedType, selectedOrigin, watchDate, posterUrl, tmdbId, movieGenres, debriefMode, chatMessages, generatedAvis, rating, selectedTags, selectedMention], () => {
+  saveDraft();
+}, { deep: true });
+
 onMounted(() => {
   expressTags.value = getExpressTags();
 
   if (props.initialMovie) {
     applyInitialMovie(props.initialMovie);
+  } else {
+    // Restore ongoing debrief draft if present
+    const saved = sessionStorage.getItem(STORAGE_DRAFT_KEY);
+    if (saved) {
+      try {
+        const draft = JSON.parse(saved);
+        movieTitle.value = draft.movieTitle || '';
+        selectedType.value = draft.selectedType || 'Film';
+        selectedOrigin.value = draft.selectedOrigin || 'Netflix';
+        watchDate.value = draft.watchDate || new Date().toISOString().split('T')[0];
+        posterUrl.value = draft.posterUrl || '';
+        tmdbId.value = draft.tmdbId;
+        movieGenres.value = draft.movieGenres || [];
+        debriefMode.value = draft.debriefMode || 'ai';
+        if (draft.chatMessages && draft.chatMessages.length > 0) {
+          chatMessages.value = draft.chatMessages;
+        }
+        generatedAvis.value = draft.generatedAvis || '';
+        rating.value = draft.rating || 7.5;
+        isRewatchExisting.value = !!draft.isRewatchExisting;
+        editingMovieId.value = draft.editingMovieId;
+        watchlistSourceId.value = draft.watchlistSourceId;
+        selectedTags.value = draft.selectedTags || [];
+        selectedMention.value = draft.selectedMention || 'Aimé';
+      } catch (e) {
+        console.error('Erreur chargement brouillon débrief:', e);
+      }
+    }
   }
 });
 
@@ -92,11 +154,18 @@ watch(() => props.initialMovie, (newM) => {
   }
 });
 
-function applyInitialMovie(movie: MovieRecord) {
-  // If the movie has an ID and a "Vu" status (or existing review/rating), it's a rewatch.
-  isRewatchExisting.value = !!movie.id && movie.statut === 'Vu';
-  editingMovieId.value = isRewatchExisting.value ? movie.id : undefined;
-  watchlistSourceId.value = movie.watchlist_source_id || (!isRewatchExisting.value && movie.id ? movie.id : undefined);
+async function applyInitialMovie(movie: MovieRecord) {
+  // Check if the movie is truly already in library ('Vu')
+  const allMovies = await getMovies('Vu');
+  const existing = allMovies.find(m => {
+    if (movie.id && m.id === movie.id && movie.statut === 'Vu') return true;
+    if (movie.tmdb_id && m.tmdb_id && Number(m.tmdb_id) === Number(movie.tmdb_id)) return true;
+    return false;
+  });
+
+  isRewatchExisting.value = !!existing;
+  editingMovieId.value = existing ? existing.id : undefined;
+  watchlistSourceId.value = movie.watchlist_source_id || (movie.statut === 'À voir' ? movie.id : undefined);
 
   movieTitle.value = movie.titre;
   selectedType.value = movie.type || 'Film';
@@ -110,17 +179,23 @@ function applyInitialMovie(movie: MovieRecord) {
     watchDate.value = new Date().toISOString().split('T')[0];
   }
   
-  posterUrl.value = movie.poster_url || '';
-  tmdbId.value = movie.tmdb_id;
-  movieGenres.value = movie.genres ? [...movie.genres] : [];
+  posterUrl.value = movie.poster_url || (existing ? existing.poster_url || '' : '');
+  tmdbId.value = movie.tmdb_id || (existing ? existing.tmdb_id : undefined);
+  movieGenres.value = movie.genres ? [...movie.genres] : (existing?.genres ? [...existing.genres] : []);
   
   // Pre-fill review and rating for rewatches
-  generatedAvis.value = movie.avis || '';
-  if (movie.note !== undefined && movie.note !== null) {
-    rating.value = movie.note;
+  if (existing) {
+    generatedAvis.value = existing.avis || '';
+    if (existing.note !== undefined && existing.note !== null) {
+      rating.value = existing.note;
+    }
+  } else {
+    generatedAvis.value = '';
+    rating.value = 7.5;
   }
 
   startNewAIChat();
+  saveDraft();
 }
 
 let tmdbTimeout: any = null;
@@ -157,7 +232,7 @@ async function selectTMDBResult(item: TMDBMediaResult) {
 
   // Check if it already exists in the library
   const allMovies = await getMovies('Vu');
-  const existing = allMovies.find(m => m.tmdb_id === item.id);
+  const existing = allMovies.find(m => m.tmdb_id && item.id && Number(m.tmdb_id) === Number(item.id));
   
   if (existing) {
     isRewatchExisting.value = true;
@@ -175,6 +250,7 @@ async function selectTMDBResult(item: TMDBMediaResult) {
   }
 
   startNewAIChat();
+  saveDraft();
 }
 
 function startNewAIChat() {
@@ -340,6 +416,7 @@ async function handleSaveToLibrary() {
       await deleteMovie(watchlistSourceId.value);
     }
 
+    sessionStorage.removeItem(STORAGE_DRAFT_KEY);
     toast.success(isRewatchExisting.value ? `Nouveau visionnage enregistré pour "${movieTitle.value}" !` : `"${movieTitle.value}" a été ajouté à ta bibliothèque !`);
     emit('data-updated');
     emit('open-library');
