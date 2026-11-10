@@ -114,8 +114,15 @@ export async function getRecipeRecords(): Promise<RecordEntry[]> {
   });
 }
 
+const MOMENT_ORDER_DESC: Record<string, number> = {
+  'Autre': 1,
+  'Soir': 2,
+  'Midi': 3,
+  'Matin': 4
+};
+
 /**
- * Fetch all planning records (active and not deleted, sorted by date desc)
+ * Fetch all planning records (active and not deleted, sorted by date desc then moment desc)
  */
 export async function getPlanningRecords(): Promise<RecordEntry[]> {
   const recs = await db.records.where('collectionId').equals(PLANNING_COL_ID).toArray();
@@ -126,13 +133,73 @@ export async function getPlanningRecords(): Promise<RecordEntry[]> {
     if (dateA !== dateB) {
       return dateB.localeCompare(dateA);
     }
-    // Secondary sort by moment (Midi before Soir)
-    const momentA = String(a.data.moment || '');
-    const momentB = String(b.data.moment || '');
-    if (momentA === 'Midi') return -1;
-    if (momentB === 'Midi') return 1;
-    return 0;
+    // Secondary sort by moment (Soir before Midi for descending date)
+    const orderA = MOMENT_ORDER_DESC[String(a.data.moment || '')] || 99;
+    const orderB = MOMENT_ORDER_DESC[String(b.data.moment || '')] || 99;
+    return orderA - orderB;
   });
+}
+
+/**
+ * Consumes a meal with optional leftover portions creation at status 'Préparé'
+ */
+export async function consumeMealWithLeftovers(params: {
+  mealRecord: RecordEntry;
+  consumedParts: number;
+  hasLeftovers: boolean;
+  leftoverParts?: number;
+  leftoverDate?: string;
+  leftoverMoment?: 'Midi' | 'Soir' | 'Autre';
+  leftoverComment?: string;
+}) {
+  const { mealRecord, consumedParts, hasLeftovers, leftoverParts, leftoverDate, leftoverMoment, leftoverComment } = params;
+  const initialConvives = Number(mealRecord.data.convives) || 1;
+
+  // 1. If stock was not yet decremented (e.g. was 'Prévu'), decrement stocks for the full prepared portions
+  if (!mealRecord.data.stock_decremente) {
+    const ingredients = mealRecord.data.ingredients_consommes || [];
+    for (const ingId of ingredients) {
+      const stockItem = await db.records.get(ingId);
+      if (stockItem && !stockItem.deletedAt) {
+        const currentQty = Number(stockItem.data.quantite) || 0;
+        const portionStd = Number(stockItem.data.quantite_standard_portion) || 1;
+        const decrement = initialConvives * portionStd;
+        stockItem.data.quantite = Math.max(0, Math.round((currentQty - decrement) * 100) / 100);
+        stockItem.updatedAt = Date.now();
+        await db.records.put(stockItem);
+      }
+    }
+  }
+
+  // 2. Update current meal to 'Consommé' with consumed parts
+  await db.records.update(mealRecord.id!, {
+    'data.statut': 'Consommé',
+    'data.convives': consumedParts,
+    'data.stock_decremente': true,
+    updatedAt: Date.now()
+  });
+
+  // 3. Create leftover meal as 'Préparé' if requested
+  if (hasLeftovers && leftoverParts && leftoverParts > 0 && leftoverDate) {
+    const leftoverRecord: RecordEntry = {
+      id: `rec-${Math.random().toString(36).substring(2, 11)}`,
+      collectionId: PLANNING_COL_ID,
+      data: {
+        date: leftoverDate,
+        moment: leftoverMoment || 'Midi',
+        repas: mealRecord.data.repas,
+        convives: leftoverParts,
+        ingredients_consommes: mealRecord.data.ingredients_consommes || [],
+        statut: 'Préparé',
+        stock_decremente: true, // Marked as already decremented from stock
+        is_reste: true,
+        commentaire: leftoverComment ? leftoverComment.trim() : `Reste (${leftoverParts} part${leftoverParts > 1 ? 's' : ''})`
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    await db.records.add(leftoverRecord);
+  }
 }
 
 /**

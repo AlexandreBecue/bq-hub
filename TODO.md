@@ -90,7 +90,6 @@ Ces tâches concernent l'homogénéisation de l'expérience utilisateur et de la
 * [x] **bq-health** : dans le cockpit, pouvoir voir un décompte des médicaments à prendre (pour gérer le stock par exemple)
 * [x] **bq-health** : dans le cockpit, pouvoir cliquer sur “médicament pris” pour que ça alimente une collection de prise de médicaments (afficher la date de la dernière prise)
 * [x] **bq-health** : dans le cas où la posologie dépasse 1 prise par jour, afficher un compteur plutôt qu’une checkbox pour la saisie de prise du jour
-* [x] **bq-health** : permettre à l'utilisateur d'ajouter la prise de médicaments ou les rdvs dans son google agenda
 * [x] **bq-health** : intégrer gemini (débrief de document médical, demande de conseils sur la médication automnome en fonction des traitements en cours et des médicaments déjà pris, etc.)
 * [x] **bq-coach** : des colonnes ont été supprimées : allure, vitesse, accompagné, officiel ; ce qui impacte négativement mes graphiques dans bq-graph
 * [x] **bq-cook** : revoir la favicon : manche du couteau en couleur secondaire
@@ -118,3 +117,7 @@ Ces tâches concernent l'homogénéisation de l'expérience utilisateur et de la
 * [x] **bq-watch** : Le débrief en cours disparaît au changement d’onglet
 * [x] **bq-watch** : La mention “ce film est déjà dans la bibliothèque” apparait même si c’est pas le cas
 * [x] **bq-watch** : Améliorer le prompt pour que les debriefs soient formulés de la même manière (rédigés à la 3e personne, pas de spoil, pas de comparaison avec d'autres films, etc.)
+* [x] **bq-cook** : permettre la duplication de repas consommé
+* [x] **bq-cook** : permettre de gérer les restes (préparer un plat pour 4 mais n’en consommer que 2 parts, il en reste donc 2 à consommer qu'on pourrait ajouter au statut "Préparé")
+* [x] **bq-cook** : trier les repas consommés par date/moment
+* [x] **bq-hub** : proposer l'ajout de données dans le google agenda (rdv médicaux, prise de médicaments, repas prévus, entretiens de véhicule, etc.)

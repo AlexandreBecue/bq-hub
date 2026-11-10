@@ -11,6 +11,7 @@ import {
 } from '../db/queries';
 import { Plus, Calendar, ShieldAlert, Sparkles, X, Edit2, Trash2, Wrench } from '@lucide/vue';
 import { useToast } from '@bq/theme/useToast';
+import { openGoogleCalendar } from '@bq/theme/calendar';
 
 const emit = defineEmits(['data-updated']);
 const toast = useToast();
@@ -368,6 +369,41 @@ const handleDeleteEntretien = async (id: string) => {
     console.error(err);
   }
 };
+
+// Google Calendar integration
+const handleAddEntretienToCalendar = (e: RecordEntry) => {
+  const vehiculeNom = activeVehicle.value?.data.nom || 'Véhicule';
+  const type = e.data.type || 'Entretien';
+  const dateStr = e.data.date;
+  const km = e.data.kilometrage ? ` (${Number(e.data.kilometrage).toLocaleString('fr')} km)` : '';
+  const garage = e.data.partenaire ? ` chez ${e.data.partenaire}` : '';
+  const notes = e.data.commentaire ? `\nNotes : ${e.data.commentaire}` : '';
+  const prix = (e.data.prix !== undefined && e.data.prix !== null) ? `\nMontant : ${Number(e.data.prix).toFixed(2)} €` : '';
+
+  openGoogleCalendar({
+    title: `Entretien ${vehiculeNom} : ${type}`,
+    startDate: dateStr,
+    startTime: '09:00',
+    durationMinutes: 60,
+    location: e.data.partenaire || '',
+    details: `Intervention d'entretien sur ${vehiculeNom} : ${type}${km}${garage}.${prix}${notes}`
+  });
+  toast.info('Ouverture de Google Agenda...');
+};
+
+const handleAddSuggestionToCalendar = (sug: any) => {
+  const vehiculeNom = activeVehicle.value?.data.nom || 'Véhicule';
+  const today = new Date().toISOString().split('T')[0];
+
+  openGoogleCalendar({
+    title: `Rappel Entretien ${vehiculeNom} : ${sug.label}`,
+    startDate: today,
+    startTime: '09:00',
+    durationMinutes: 60,
+    details: `Entretien préventif recommandé pour ${vehiculeNom} :\n${sug.label} (${sug.desc})\n${sug.detailText}`
+  });
+  toast.info('Ouverture de Google Agenda pour le rappel d\'entretien...');
+};
 </script>
 
 <template>
@@ -454,6 +490,16 @@ const handleDeleteEntretien = async (id: string) => {
               <div class="sug-details-box mt-3 text-sm text-sub">
                 {{ sug.detailText }}
               </div>
+
+              <div v-if="sug.status === 'overdue' || sug.status === 'soon'" class="flex-row justify-end mt-3 pt-2 border-top">
+                <button 
+                  @click="handleAddSuggestionToCalendar(sug)" 
+                  class="btn btn-outline btn-secondary btn-xs flex-row align-center gap-1" 
+                  title="Créer un rappel dans Google Agenda"
+                >
+                  <Calendar :size="12" /> Rappel Agenda
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -494,6 +540,9 @@ const handleDeleteEntretien = async (id: string) => {
                   <div class="flex-row justify-between border-top pt-2 mt-2">
                     <span class="text-muted text-xs italic">{{ e.data.commentaire || 'Aucun commentaire.' }}</span>
                     <div class="action-buttons flex-row gap-2">
+                      <button @click="handleAddEntretienToCalendar(e)" class="action-btn" title="Ajouter à Google Agenda">
+                        <Calendar :size="14" />
+                      </button>
                       <button @click="openEditModal(e)" class="action-btn edit" title="Modifier">
                         <Edit2 :size="14" />
                       </button>
