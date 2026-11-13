@@ -92,14 +92,66 @@ onMounted(() => {
   loadData();
 });
 
+// List of accounts available as destination for internal transfers (excludes source account)
+const destinationComptes = computed(() => {
+  return comptes.value.filter(c => c.data.is_active !== false && c.data.nom !== formOp.value.compte);
+});
+
+// Auto-fill budget based on destination account type (Épargne / Investissement / Classique)
+const autoFillInternalBudget = () => {
+  if (formOp.value.type !== 'Interne') return;
+  const targetName = String(formOp.value.partenaire || '').trim();
+  if (!targetName) {
+    formOp.value.budget = '';
+    return;
+  }
+  const targetAccount = comptes.value.find(c => c.data.nom === targetName);
+  if (!targetAccount) return;
+
+  const accType = targetAccount.data.type;
+  if (accType === 'Épargne') {
+    const b = budgets.value.find(b => {
+      const n = b.data.nom.toLowerCase();
+      return n === 'épargne' || n === 'epargne';
+    });
+    formOp.value.budget = b ? b.data.nom : (budgets.value.find(b => b.data.nom.toLowerCase().includes('épargne') || b.data.nom.toLowerCase().includes('epargne'))?.data.nom || 'Épargne');
+  } else if (accType === 'Investissement') {
+    const b = budgets.value.find(b => b.data.nom.toLowerCase() === 'investissement');
+    formOp.value.budget = b ? b.data.nom : (budgets.value.find(b => b.data.nom.toLowerCase().includes('investissement'))?.data.nom || 'Investissement');
+  } else {
+    // Compte Classique (retrait espèce, virement compte courant) -> pas de budget
+    formOp.value.budget = '';
+  }
+};
+
 // Auto-adjust categories when type changes
 watch(() => formOp.value.type, (newType) => {
   if (newType === 'Entrée') {
     formOp.value.categorie = 'Revenu';
+    formOp.value.budget = '';
   } else if (newType === 'Sortie') {
     formOp.value.categorie = 'Dépense';
+    if (!formOp.value.budget && budgets.value.length > 0) {
+      formOp.value.budget = budgets.value[0].data.nom;
+    }
   } else if (newType === 'Interne') {
     formOp.value.categorie = 'Virement';
+    autoFillInternalBudget();
+  }
+});
+
+// Auto-fill budget when target account changes in Interne mode
+watch(() => formOp.value.partenaire, () => {
+  if (formOp.value.type === 'Interne') {
+    autoFillInternalBudget();
+  }
+});
+
+// If source account changes to be equal to destination account in Interne mode, reset destination
+watch(() => formOp.value.compte, (newCompte) => {
+  if (formOp.value.type === 'Interne' && formOp.value.partenaire === newCompte) {
+    formOp.value.partenaire = '';
+    formOp.value.budget = '';
   }
 });
 
@@ -327,7 +379,7 @@ const handleCreateTemplate = async () => {
         montant: Number(formOp.value.montant) || 0,
         compte: formOp.value.compte,
         categorie: formOp.value.categorie,
-        budget: formOp.value.type === 'Sortie' ? formOp.value.budget : '',
+        budget: formOp.value.budget ? formOp.value.budget.trim() : '',
         partenaire: formOp.value.partenaire.trim(),
         commentaire: formOp.value.commentaire.trim()
       },
@@ -395,6 +447,17 @@ const handleAddFinance = async () => {
     return;
   }
 
+  if (formOp.value.type === 'Interne') {
+    if (!formOp.value.partenaire.trim()) {
+      toast.warning('Veuillez sélectionner un compte destinataire pour le virement interne.');
+      return;
+    }
+    if (formOp.value.partenaire.trim() === formOp.value.compte.trim()) {
+      toast.warning('Le compte source et le compte destinataire doivent être différents.');
+      return;
+    }
+  }
+
   try {
     if (editingRecordId.value !== null) {
       // Edit mode: update existing record
@@ -404,7 +467,7 @@ const handleAddFinance = async () => {
         'data.montant': m,
         'data.compte': formOp.value.compte,
         'data.categorie': formOp.value.categorie,
-        'data.budget': formOp.value.type === 'Sortie' ? formOp.value.budget : '',
+        'data.budget': formOp.value.budget ? formOp.value.budget.trim() : '',
         'data.partenaire': formOp.value.partenaire.trim(),
         'data.commentaire': formOp.value.commentaire.trim(),
         updatedAt: Date.now()
@@ -422,7 +485,7 @@ const handleAddFinance = async () => {
           montant: m,
           compte: formOp.value.compte,
           categorie: formOp.value.categorie,
-          budget: formOp.value.type === 'Sortie' ? formOp.value.budget : '', // budgets only apply to expenses
+          budget: formOp.value.budget ? formOp.value.budget.trim() : '',
           partenaire: formOp.value.partenaire.trim(),
           commentaire: formOp.value.commentaire.trim()
         },
@@ -580,7 +643,7 @@ const handleDeleteFinance = async (id: string) => {
 
           <div class="form-grid">
             <div class="form-group">
-              <label>Compte Bancaire *</label>
+              <label>{{ formOp.type === 'Interne' ? 'Compte Source *' : 'Compte Bancaire *' }}</label>
               <select v-model="formOp.compte" class="select">
                 <option v-if="comptes.length === 0" value="">Aucun compte actif</option>
                 <option v-for="c in comptes.filter(comp => comp.data.is_active !== false)" :key="c.id" :value="c.data.nom">
@@ -596,8 +659,8 @@ const handleDeleteFinance = async (id: string) => {
             </div>
           </div>
 
-          <!-- Enveloppe Budgétaire is only relevant for Sorties/Expenses -->
-          <div class="form-group" v-if="formOp.type === 'Sortie'">
+          <!-- Enveloppe Budgétaire (Optionnelle pour tous les flux : dépenses, virements épargne/investissement, remboursements) -->
+          <div class="form-group">
             <label>Enveloppe Budgétaire (Optionnelle)</label>
             <select v-model="formOp.budget" class="select">
               <option value="">Aucun budget</option>
@@ -607,8 +670,24 @@ const handleDeleteFinance = async (id: string) => {
 
           <div class="form-grid">
             <div class="form-group">
-              <label>Partenaire</label>
-              <input v-model="formOp.partenaire" type="text" placeholder="Ex: Auchan, EDF, Employeur" class="input" />
+              <label>{{ formOp.type === 'Interne' ? 'Compte Destinataire *' : 'Partenaire' }}</label>
+              <select v-if="formOp.type === 'Interne'" v-model="formOp.partenaire" class="select">
+                <option value="">Sélectionner un compte destinataire...</option>
+                <option 
+                  v-for="c in destinationComptes" 
+                  :key="c.id" 
+                  :value="c.data.nom"
+                >
+                  {{ c.data.nom }} ({{ c.data.type || 'Classique' }})
+                </option>
+                <option 
+                  v-if="formOp.partenaire && !destinationComptes.some(c => c.data.nom === formOp.partenaire)" 
+                  :value="formOp.partenaire"
+                >
+                  {{ formOp.partenaire }}
+                </option>
+              </select>
+              <input v-else v-model="formOp.partenaire" type="text" placeholder="Ex: Auchan, EDF, Employeur" class="input" />
             </div>
             <div class="form-group">
               <label>Commentaire</label>

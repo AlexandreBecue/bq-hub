@@ -91,18 +91,23 @@ const budgetProgressList = computed(() => {
     const bName = b.data.nom;
     const limit = Number(b.data.plafond_mensuel) || 0;
 
-    // Sum all Sorties with this budget tag in selected month
+    // Net consumption: (Sorties + Internes) - Entrées (Remboursements)
     let totalSpent = 0;
     selectedMonthFinances.value.forEach(f => {
-      if (f.data.type === 'Sortie' && String(f.data.budget).trim() === bName.trim()) {
-        totalSpent += Number(f.data.montant) || 0;
+      if (String(f.data.budget || '').trim() === bName.trim()) {
+        const amount = Number(f.data.montant) || 0;
+        if (f.data.type === 'Sortie' || f.data.type === 'Interne') {
+          totalSpent += amount;
+        } else if (f.data.type === 'Entrée') {
+          totalSpent -= amount;
+        }
       }
     });
 
     const percent = limit > 0 ? (totalSpent / limit) * 100 : 0;
 
     let barColorClass = 'bg-primary';
-    if (percent === 0) {
+    if (percent <= 0) {
       barColorClass = 'bg-empty';
     } else if (percent >= 100) {
       barColorClass = 'bg-danger';
@@ -216,7 +221,7 @@ const budgetProgressList = computed(() => {
                 <div 
                   class="progress-bar-fill" 
                   :class="b.barColorClass" 
-                  :style="{ width: Math.min(b.percent, 100) + '%' }"
+                  :style="{ width: Math.min(Math.max(b.percent, 0), 100) + '%' }"
                 ></div>
               </div>
 
