@@ -1,4 +1,4 @@
-import { db, type RecordEntry, type CollectionSchema } from './index';
+import { db, generateId, type RecordEntry, type CollectionSchema } from './index';
 
 // Dedicated Collection IDs
 export const STOCK_COL_ID = 'col-ixd02dr3f';
@@ -153,47 +153,58 @@ export async function consumeMealWithLeftovers(params: {
   leftoverComment?: string;
 }) {
   const { mealRecord, consumedParts, hasLeftovers, leftoverParts, leftoverDate, leftoverMoment, leftoverComment } = params;
-  const initialConvives = Number(mealRecord.data.convives) || 1;
+  if (!mealRecord || !mealRecord.id) {
+    throw new Error('Repas introuvable ou invalide');
+  }
+
+  const initialConvives = Number(mealRecord.data?.convives) || 1;
+  const rawIngredients = Array.isArray(mealRecord.data?.ingredients_consommes)
+    ? [...mealRecord.data.ingredients_consommes]
+    : [];
 
   // 1. If stock was not yet decremented (e.g. was 'Prévu'), decrement stocks for the full prepared portions
-  if (!mealRecord.data.stock_decremente) {
-    const ingredients = mealRecord.data.ingredients_consommes || [];
-    for (const ingId of ingredients) {
-      const stockItem = await db.records.get(ingId);
-      if (stockItem && !stockItem.deletedAt) {
-        const currentQty = Number(stockItem.data.quantite) || 0;
-        const portionStd = Number(stockItem.data.quantite_standard_portion) || 1;
-        const decrement = initialConvives * portionStd;
-        stockItem.data.quantite = Math.max(0, Math.round((currentQty - decrement) * 100) / 100);
-        stockItem.updatedAt = Date.now();
-        await db.records.put(stockItem);
+  if (!mealRecord.data?.stock_decremente) {
+    for (const ingId of rawIngredients) {
+      if (!ingId || typeof ingId !== 'string') continue;
+      try {
+        const stockItem = await db.records.get(ingId);
+        if (stockItem && !stockItem.deletedAt && stockItem.data) {
+          const currentQty = Number(stockItem.data.quantite) || 0;
+          const portionStd = Number(stockItem.data.quantite_standard_portion) || 1;
+          const decrement = initialConvives * portionStd;
+          stockItem.data.quantite = Math.max(0, Math.round((currentQty - decrement) * 100) / 100);
+          stockItem.updatedAt = Date.now();
+          await db.records.put(stockItem);
+        }
+      } catch (stockErr) {
+        console.warn(`Impossible de décrémenter le stock pour l'ingrédient ${ingId}:`, stockErr);
       }
     }
   }
 
   // 2. Update current meal to 'Consommé' with consumed parts
-  await db.records.update(mealRecord.id!, {
+  await db.records.update(mealRecord.id, {
     'data.statut': 'Consommé',
-    'data.convives': consumedParts,
+    'data.convives': Number(consumedParts) || 1,
     'data.stock_decremente': true,
     updatedAt: Date.now()
   });
 
   // 3. Create leftover meal as 'Préparé' if requested
-  if (hasLeftovers && leftoverParts && leftoverParts > 0 && leftoverDate) {
+  if (hasLeftovers && leftoverParts && Number(leftoverParts) > 0 && leftoverDate) {
     const leftoverRecord: RecordEntry = {
-      id: `rec-${Math.random().toString(36).substring(2, 11)}`,
+      id: `rec-${generateId()}`,
       collectionId: PLANNING_COL_ID,
       data: {
-        date: leftoverDate,
+        date: String(leftoverDate),
         moment: leftoverMoment || 'Midi',
-        repas: mealRecord.data.repas,
-        convives: leftoverParts,
-        ingredients_consommes: mealRecord.data.ingredients_consommes || [],
+        repas: mealRecord.data?.repas || '',
+        convives: Number(leftoverParts),
+        ingredients_consommes: [...rawIngredients],
         statut: 'Préparé',
         stock_decremente: true, // Marked as already decremented from stock
         is_reste: true,
-        commentaire: leftoverComment ? leftoverComment.trim() : `Reste (${leftoverParts} part${leftoverParts > 1 ? 's' : ''})`
+        commentaire: leftoverComment ? leftoverComment.trim() : `Reste (${leftoverParts} part${Number(leftoverParts) > 1 ? 's' : ''})`
       },
       createdAt: Date.now(),
       updatedAt: Date.now()

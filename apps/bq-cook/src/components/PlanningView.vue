@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, toRaw } from 'vue';
 import { db, generateId, type RecordEntry } from '../db';
 import { 
   PLANNING_COL_ID, 
@@ -46,6 +46,22 @@ const formRepasId = ref('');
 const formConvives = ref(1);
 const formIngredients = ref<string[]>([]);
 const formCommentaire = ref('');
+
+// Filter out non-food categories (hygiène, bazar, etc.) while preserving any manually selected items
+const isNonFoodCategory = (cat?: string): boolean => {
+  if (!cat) return false;
+  const c = cat.toLowerCase();
+  return c.includes('hygiène') || c.includes('hygiene') || c.includes('entretien') || c.includes('bazar');
+};
+
+const foodStockItems = computed(() => {
+  return stockItems.value.filter(item => {
+    if (formIngredients.value.includes(item.id!)) {
+      return true;
+    }
+    return !isNonFoodCategory(item.data.categorie);
+  });
+});
 
 // Consume Modal & Leftovers States
 const showConsumeModal = ref(false);
@@ -300,9 +316,17 @@ const openConsumeModal = (rec: RecordEntry) => {
     consumeForm.value.leftoverMoment = 'Soir';
   } else {
     // Tomorrow noon
-    const d = new Date(mealDate);
-    d.setDate(d.getDate() + 1);
-    consumeForm.value.leftoverDate = d.toISOString().split('T')[0];
+    try {
+      const d = new Date(mealDate);
+      if (!isNaN(d.getTime())) {
+        d.setDate(d.getDate() + 1);
+        consumeForm.value.leftoverDate = d.toISOString().split('T')[0];
+      } else {
+        consumeForm.value.leftoverDate = new Date().toISOString().split('T')[0];
+      }
+    } catch {
+      consumeForm.value.leftoverDate = new Date().toISOString().split('T')[0];
+    }
     consumeForm.value.leftoverMoment = 'Midi';
   }
 
@@ -332,12 +356,20 @@ const onConsumedPartsInput = () => {
 const handleConfirmConsume = async () => {
   if (!mealToConsume.value) return;
 
+  if (consumeForm.value.hasLeftovers && consumeForm.value.leftoverParts > 0) {
+    if (!consumeForm.value.leftoverDate) {
+      toast.warning('Veuillez renseigner la date pour les restes.');
+      return;
+    }
+  }
+
   try {
+    const rawMeal = toRaw(mealToConsume.value);
     await consumeMealWithLeftovers({
-      mealRecord: mealToConsume.value,
-      consumedParts: consumeForm.value.consumedParts,
-      hasLeftovers: consumeForm.value.hasLeftovers,
-      leftoverParts: consumeForm.value.leftoverParts,
+      mealRecord: rawMeal,
+      consumedParts: Number(consumeForm.value.consumedParts) || 1,
+      hasLeftovers: Boolean(consumeForm.value.hasLeftovers),
+      leftoverParts: Number(consumeForm.value.leftoverParts) || 0,
       leftoverDate: consumeForm.value.leftoverDate,
       leftoverMoment: consumeForm.value.leftoverMoment,
       leftoverComment: consumeForm.value.leftoverComment
@@ -592,6 +624,7 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
                     min="1" 
                     :max="mealToConsume.data.convives || 1"
                     @input="onConsumedPartsInput"
+                    @change="onConsumedPartsInput"
                   />
                   <span class="text-sub text-xs">
                     sur {{ mealToConsume.data.convives || 1 }} part{{ (mealToConsume.data.convives || 1) > 1 ? 's' : '' }} préparée(s)
@@ -673,7 +706,7 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
                   <select id="planMoment" v-model="formMoment" class="form-control">
                     <option value="Midi">Midi</option>
                     <option value="Soir">Soir</option>
-                    <option value="Autre">Autre (En-cas, Brunch)</option>
+                    <option value="Autre">Autre</option>
                   </select>
                 </div>
               </div>
@@ -689,7 +722,7 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
                   </select>
                 </div>
                 <div class="form-group flex-1 ml-3 col-convives">
-                  <label for="planConvives">Parts / Convives</label>
+                  <label for="planConvives">Parts</label>
                   <input id="planConvives" v-model.number="formConvives" type="number" class="form-control" min="1" />
                 </div>
               </div>
@@ -698,9 +731,9 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
               <div class="form-group mt-3">
                 <label for="planStatut">Statut du repas</label>
                 <select id="planStatut" v-model="formStatut" class="form-control">
-                  <option value="Prévu">Prévu (au planning)</option>
-                  <option value="Préparé">Préparé (déjà cuisiné / meal prep)</option>
-                  <option value="Consommé">Consommé (repas passé)</option>
+                  <option value="Prévu">Prévu</option>
+                  <option value="Préparé">Préparé (déjà cuisiné)</option>
+                  <option value="Consommé">Consommé</option>
                 </select>
                 <p class="field-tip text-xs text-sub mt-1" v-if="formStatut === 'Préparé'">
                   Sélectionner "Préparé" décompte immédiatement les stocks d'ingrédients bruts.
@@ -712,7 +745,7 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
                 <label>Ingrédients consommés pour cette fois</label>
                 <p class="field-tip">Ajuste la liste des ingrédients réellement utilisés pour ce repas spécifique.</p>
                 <div class="ingredients-selection-list">
-                  <label v-for="item in stockItems" :key="item.id" class="checkbox-container export-item">
+                  <label v-for="item in foodStockItems" :key="item.id" class="checkbox-container export-item">
                     <input type="checkbox" :value="item.id" v-model="formIngredients" />
                     <span class="checkmark"></span>
                     <span class="label-text">
@@ -722,6 +755,7 @@ const getMealFeasibility = (rec: RecordEntry): 'disponible' | 'partiel' | 'ruptu
                       </span>
                     </span>
                   </label>
+                  <p v-if="foodStockItems.length === 0" class="field-tip error-text">Aucun ingrédient alimentaire en stock disponible.</p>
                 </div>
               </div>
 

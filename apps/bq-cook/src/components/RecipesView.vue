@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { db, generateId, type RecordEntry } from '../db';
 import { RECIPES_COL_ID, getRecipeRecords, getStockRecords } from '../db/queries';
 import { Plus, Trash2, Clock, BookOpen, Utensils, X, Check, Edit2 } from '@lucide/vue';
@@ -18,6 +18,22 @@ const formName = ref('');
 const formPrepTime = ref<number | undefined>(15);
 const formCookTime = ref<number | undefined>(20);
 const formIngredients = ref<string[]>([]);
+
+// Filter out non-food categories (hygiène, bazar, etc.) while preserving any manually selected items
+const isNonFoodCategory = (cat?: string): boolean => {
+  if (!cat) return false;
+  const c = cat.toLowerCase();
+  return c.includes('hygiène') || c.includes('hygiene') || c.includes('entretien') || c.includes('bazar');
+};
+
+const foodStockItems = computed(() => {
+  return stockItems.value.filter(item => {
+    if (formIngredients.value.includes(item.id!)) {
+      return true;
+    }
+    return !isNonFoodCategory(item.data.categorie);
+  });
+});
 
 const loadData = async () => {
   recipes.value = await getRecipeRecords();
@@ -222,12 +238,12 @@ const getIngredientNames = (ingIds: string[]) => {
               <div class="form-group mt-3">
                 <label>Ingrédients requis</label>
                 <div class="ingredients-selection-list">
-                  <label v-for="item in stockItems" :key="item.id" class="checkbox-container export-item">
+                  <label v-for="item in foodStockItems" :key="item.id" class="checkbox-container export-item">
                     <input type="checkbox" :value="item.id" v-model="formIngredients" />
                     <span class="checkmark"></span>
                     <span class="label-text">{{ item.data.nom }}</span>
                   </label>
-                  <p v-if="stockItems.length === 0" class="field-tip error-text">Aucun produit en stock disponible. Crée des fiches dans l'onglet <strong>Stocks</strong> d'abord.</p>
+                  <p v-if="foodStockItems.length === 0" class="field-tip error-text">Aucun ingrédient alimentaire en stock disponible. Crée des fiches dans l'onglet <strong>Stocks</strong> d'abord.</p>
                 </div>
               </div>
             </div>
